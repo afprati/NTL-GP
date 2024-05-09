@@ -16,7 +16,6 @@ class MultitaskGPModel(gpytorch.models.ApproximateGP):
             - train_y:
             - likelihood:
         '''
-        print('STARTING INDUCING POINTS')
         # Sparse Variational Formulation
         num_inducing = 2 #can change, higher more accurate but takes longer
         inducing_points = train_x[np.random.choice(train_x.size(0),num_inducing,replace=False),:]
@@ -24,9 +23,7 @@ class MultitaskGPModel(gpytorch.models.ApproximateGP):
         inducing_points = torch.unique(inducing_points, dim=0) # make rowwise unique
         inducing_points += np.random.normal(size=inducing_points.shape)*1e-3
         print('inducing points:', inducing_points)
-        print('STARTING CholeskyVariationalDistribution')
         q_u = CholeskyVariationalDistribution(inducing_points.size(0))
-        print('STARTING CHOLESKY VARIATIONAL STRATEGY')
         q_f = VariationalStrategy(self, inducing_points, q_u, \
                                  learn_inducing_locations=False)
         super().__init__(q_f)

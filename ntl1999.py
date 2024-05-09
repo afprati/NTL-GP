@@ -44,13 +44,9 @@ def train(train_x, train_y, model, likelihood, mll, optimizer, training_iteratio
         log_lik = 0
         for j, (x_batch, y_batch) in enumerate(train_loader):
             optimizer.zero_grad()
-            print('STARTING CHOLESKY JITTER THING')
-            print(j)
             with gpytorch.settings.cholesky_jitter(1e-2):
-                print('WHAT IS THE OUTPUT')
                 print('x_batch:', x_batch)
                 output = model(x_batch)
-                print('ENDING CHOLESKY JITTER THING')
             with gpytorch.settings.fast_computations(covar_root_decomposition=False, log_prob=False, solves=False):
                 loss = -mll(output, y_batch)
             loss.backward()
