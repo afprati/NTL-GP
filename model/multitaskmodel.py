@@ -21,7 +21,7 @@ class MultitaskGPModel(gpytorch.models.ApproximateGP):
         inducing_points = train_x[np.random.choice(train_x.size(0),num_inducing,replace=False),:]
         # trying to make sure inducing points do not have too many zeros; remove duplicates
         inducing_points = torch.unique(inducing_points, dim=0) # make rowwise unique
-        inducing_points += np.random.normal(size=inducing_points.shape)*1e-3
+        inducing_points += np.random.normal(size=inducing_points.shape)*1e-2
         print('inducing points:', inducing_points)
         q_u = CholeskyVariationalDistribution(inducing_points.size(0))
         q_f = VariationalStrategy(self, inducing_points, q_u, \

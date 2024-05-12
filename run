@@ -1,0 +1,52 @@
+#!/bin/bash
+
+mkdir -p data/synthetic
+mkdir -p results
+# bsub -R 'span[hosts=1]' -G SEAS-Lab-Garnett -J "localnews" -o localnews.log "./onerun"
+
+# bsub -R 'span[hosts=1]' -G SEAS-Lab-Garnett -J "tunesynthetic" -o tunesynthetic.log "./onerun"
+
+# declare -a chains=(1 2 3 4 5)
+
+# for chain in ${chains[@]}; do
+#     bsub -R 'span[hosts=1]' -G SEAS-Lab-Garnett -J "synthetic_${chain}" -o "synthetic_${chain}".log "./onerun $chain"
+# done
+
+MAXSEED=25
+declare -a EFFECTS=(0.1)
+declare -a ULS=(1000)
+declare -a RHOS=(0.9999)
+
+declare -a ULS=(21)
+declare -a RHOS=(0.1 0.5 0.9)
+
+if [ $1 = "run" ]
+then
+    for SEED in $(seq 1 1 $MAXSEED); do
+        for uls in ${ULS[@]}; do
+            for rho in ${RHOS[@]}; do
+                for effect in ${EFFECTS[@]}; do
+                    bsub -G SEAS-Lab-Garnett -o "log/idv${SEED}r${rho}.log" -J "idv${SEED}r${rho}" "./onerun $SEED $uls $rho ${effect}"
+                done
+            done
+        done
+    done
+elif [ $1 = "measure" ]
+then
+    for uls in ${ULS[@]}; do
+        for rho in ${RHOS[@]}; do
+            for effect in ${EFFECTS[@]}; do
+                Rscript --vanilla data/measures.R $MAXSEED $uls $rho $effect
+            done
+        done
+    done
+elif [ $1 = "summary" ]
+then
+    for effect in ${EFFECTS[@]}; do
+        Rscript --vanilla data/summary.R $MAXSEED $effect "${ULS[@]}" "${RHOS[@]}"
+    done
+fi
+
+# bsub -R 'span[hosts=1]' -G SEAS-Lab-Garnett -J "marginalize drift" -o marginalizedrift.log "./onerun"
+
+# bsub -R 'span[hosts=1]' -G SEAS-Lab-Garnett -J "sigact" -o "sigact.log" "./onerun"

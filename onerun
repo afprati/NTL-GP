@@ -1,0 +1,33 @@
+#!/bin/bash
+#BSUB -n 1
+#BSUB -R "span[hosts=1]"
+
+mkdir -p /export/cluster-tmp/chenyehu
+export TMPDIR=/export/cluster-tmp/chenyehu
+
+# module add seas-anaconda3
+# conda activate chenyehu
+# module add gcc-6.5.0
+# python main.py -t localnews -i MCMC
+
+SEED=$1
+uls=$2
+rho=$3
+effect=$4
+
+matlab -nodisplay -nodesktop -r "addpath('data');baseline(${SEED},${uls},${rho},${effect}); exit;"
+
+# python data/cmgp.py $SEED $uls $rho $effect
+
+# Rscript --vanilla data/bgsc.R $SEED 10 $uls $rho $effect
+
+# Rscript --vanilla data/ife.R $SEED 0 $uls $rho $effect
+# Rscript --vanilla data/ife.R $SEED 10 $uls $rho $effect
+
+# matlab -nodisplay -nodesktop -r "hmc_sample_chain(${chain}); exit;"
+
+# matlab -nodisplay -nodesktop -r "addpath('model');plotmarginalizeddrift; exit;"
+
+# matlab -nodisplay -nodesktop -r "sigact_sample_treatment; exit;"
+
+# conda deactivate
