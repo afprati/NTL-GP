@@ -207,7 +207,7 @@ class DriftScaleKernel(Kernel):
             for name, param in self.named_parameters():
                 param.requires_grad = False
 
-    def scaling(self,x):
+    def scaling(self,x): # can't find gradient, creating NaN
         x = torch.clamp(x, min=self.T0+(self.T1).item(), max=self.T0+(self.T1+self.T2).item())
         x = (x-self.T0-self.T1)/self.T2
         # return x

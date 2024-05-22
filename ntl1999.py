@@ -24,7 +24,7 @@ from torch.utils.data import TensorDataset, DataLoader
 
 
 smoke_test = ('CI' in os.environ)
-training_iterations = 2 if smoke_test else 2
+training_iterations = 2 if smoke_test else 10
 num_samples = 2 if smoke_test else 500
 warmup_steps = 2 if smoke_test else 500
 load_batch_size = 256 # can also be 512
@@ -44,22 +44,17 @@ def train(train_x, train_y, model, likelihood, mll, optimizer, training_iteratio
         for j, (x_batch, y_batch) in enumerate(train_loader):
             optimizer.zero_grad()
             with gpytorch.settings.cholesky_jitter(1e-2):
-                print('x_batch:', torch.isnan(x_batch))
                 output = model(x_batch)
                 output_mean = output.mean.detach().cpu().numpy() 
-                print('OUTPUT:', output_mean)
             with gpytorch.settings.fast_computations(covar_root_decomposition=False, log_prob=False, solves=False):
-                loss = -mll(output, y_batch)
+                print('output covariance matrix: ', torch.det(output.covariance_matrix))
+                loss = -mll(output.add_jitter(1e-3), y_batch)
             loss.backward()
             optimizer.step()
             log_lik += -loss.item()*y_batch.shape[0]
             if j % 50:
                 print('Epoch %d Iter %d - Loss: %.3f' % (i + 1, j+1, loss.item()))
         print('Epoch %d - log lik: %.3f' % (i + 1, log_lik))
-
-    
-            
-                 
 
     return model, likelihood
 
@@ -73,16 +68,16 @@ def synthetic(INFERENCE):
     N_co = configs["N_co"]
     N = N_tr + N_co
     T = configs["T"]
-    T0 = configs["T0"]
+    #T0 = configs["T0"]
     d = configs["d"]
     noise_std = configs["noise_std"]
     Delta = configs["treatment_effect"]
     seed = configs["seed"]
 
-    X_tr, X_co, Y_tr, Y_co, ATT = generate_synthetic_data(N_tr, N_co, T, T0, d, Delta, noise_std, seed)
-    train_x_tr = X_tr[:,:T0].reshape(-1,d+1)
+    X_tr, X_co, Y_tr, Y_co, ATT = generate_synthetic_data(N_tr, N_co, T, d, Delta, noise_std, seed)
+    train_x_tr = X_tr[:,:].reshape(-1,d+1)
     train_x_co = X_co.reshape(-1,d+1)
-    train_y_tr = Y_tr[:,:T0].reshape(-1)
+    train_y_tr = Y_tr[:,:].reshape(-1)
     train_y_co = Y_co.reshape(-1)
 
     train_x = torch.cat([train_x_tr, train_x_co])
@@ -127,7 +122,7 @@ def synthetic(INFERENCE):
         mcmc_run.run(train_x, train_i, train_y)
         torch.save(model.state_dict(), 'results/synthetic_' + INFERENCE +'_model_state.pth')
 
-    visualize_synthetic(X_tr, X_co, Y_tr, Y_co, ATT, model, likelihood, T0)
+    visualize_synthetic(X_tr, X_co, Y_tr, Y_co, ATT, model, likelihood)
 
 
 def ntl(INFERENCE):
@@ -290,8 +285,8 @@ def ntl(INFERENCE):
         for name, param in model.drift_t_module.named_parameters():
             param.requires_grad = True
         
-        model.drift_t_module._set_T1(0.0) 
-        model.drift_t_module._set_T2(5.0) 
+        #model.drift_t_module._set_T1(2.0)  # when treatment starts taking effect
+        #model.drift_t_module._set_T2(5.0) # when treatment stabilizes
         model.drift_t_module.base_kernel.lengthscale = 30.0
         model.drift_t_module.outputscale = 0.05**2
 
@@ -299,8 +294,6 @@ def ntl(INFERENCE):
         # model.drift_t_module.raw_T2.requires_grad = False
         
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-        print('TEST_X:', torch.isnan(test_x))
-        print('TEST_Y:', torch.isnan(test_y))
         model, likelihood = train(test_x, test_y, model, likelihood, mll, optimizer, training_iterations)
 
         torch.save(model.state_dict(), 'results/ntl_' +  INFERENCE + '_model_state.pth')
@@ -361,8 +354,6 @@ def ntl(INFERENCE):
         
         print(f'Parameter name: drift ls value = {model.drift_t_module.base_kernel.lengthscale.detach().numpy()}')
         print(f'Parameter name: drift cov os value = {np.sqrt(model.drift_t_module.outputscale.detach().numpy())}')
-        print(f'Parameter name: drift cov T1 value = {model.drift_t_module.T1.detach().numpy()}')
-        print(f'Parameter name: drift cov T2 value = {model.drift_t_module.T2.detach().numpy()}')
 
         visualize_localnews(data, test_x, test_y, test_g, model, model2, likelihood, T0, station_le, train_condition)
 

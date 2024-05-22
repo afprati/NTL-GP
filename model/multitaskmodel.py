@@ -17,12 +17,11 @@ class MultitaskGPModel(gpytorch.models.ApproximateGP):
             - likelihood:
         '''
         # Sparse Variational Formulation
-        num_inducing = 2 #can change, higher more accurate but takes longer
+        num_inducing = 20 #can change, higher more accurate but takes longer
         inducing_points = train_x[np.random.choice(train_x.size(0),num_inducing,replace=False),:]
         # trying to make sure inducing points do not have too many zeros; remove duplicates
         inducing_points = torch.unique(inducing_points, dim=0) # make rowwise unique
         inducing_points += np.random.normal(size=inducing_points.shape)*1e-2
-        print('inducing points:', inducing_points)
         q_u = CholeskyVariationalDistribution(inducing_points.size(0))
         q_f = VariationalStrategy(self, inducing_points, q_u, \
                                  learn_inducing_locations=False)
@@ -82,7 +81,7 @@ class MultitaskGPModel(gpytorch.models.ApproximateGP):
         self.unit_indicator_module = myIndicatorKernel(num_tasks=len(train_x[:,-3].unique()))
 
         # drift process for treatment effect
-        self.drift_t_module = DriftScaleKernel(gpytorch.kernels.RBFKernel(\
+        self.drift_t_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(\
                 active_dims=torch.tensor([self.d]),\
                 lengthscale_prior=drift_lengthscale_prior if MAP else None),\
                 outputscale_prior=drift_outputscale_prior if MAP else None)
@@ -110,10 +109,10 @@ class MultitaskGPModel(gpytorch.models.ApproximateGP):
         covar_unit_indicator = self.unit_indicator_module(units)
         covar = covar_group_t.mul(covar_group_index) + covar_unit_t.mul(covar_unit_indicator)
 
-        if self.drift_t_module.T0 is not None:
-            covar_drift_indicator = self.drift_indicator_module(group)
-            covar_drift_t = self.drift_t_module(x)
-            covar += covar_drift_t.mul(covar_drift_indicator)
+        #if self.drift_t_module.T0 is not None:
+        covar_drift_indicator = self.drift_indicator_module(group)
+        covar_drift_t = self.drift_t_module(x)
+        covar += covar_drift_t.mul(covar_drift_indicator)
 
         # marginalize weekday/day/unit id effects
         for j in range(len(self.X_max_v)):
