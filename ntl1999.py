@@ -22,12 +22,13 @@ import dill as pickle
 from gpytorch.mlls import VariationalELBO
 from torch.utils.data import TensorDataset, DataLoader
 
+torch.manual_seed(123)
 
 smoke_test = ('CI' in os.environ)
 training_iterations = 2 if smoke_test else 10
 num_samples = 2 if smoke_test else 500
 warmup_steps = 2 if smoke_test else 500
-load_batch_size = 256 # can also be 512
+load_batch_size = 512 # can also be 512
 
 
 def train(train_x, train_y, model, likelihood, mll, optimizer, training_iterations):
@@ -43,12 +44,11 @@ def train(train_x, train_y, model, likelihood, mll, optimizer, training_iteratio
         log_lik = 0
         for j, (x_batch, y_batch) in enumerate(train_loader):
             optimizer.zero_grad()
-            with gpytorch.settings.cholesky_jitter(1e-2):
-                output = model(x_batch)
-                output_mean = output.mean.detach().cpu().numpy() 
-            with gpytorch.settings.fast_computations(covar_root_decomposition=False, log_prob=False, solves=False):
-                print('output covariance matrix: ', torch.det(output.covariance_matrix))
-                loss = -mll(output.add_jitter(1e-3), y_batch)
+            #with gpytorch.settings.cholesky_jitter(1e-2):
+            output = model(x_batch)
+            output_mean = output.mean.detach().cpu().numpy() 
+            #with gpytorch.settings.fast_computations(covar_root_decomposition=False, log_prob=False, solves=False):
+            loss = -mll(output, y_batch)
             loss.backward()
             optimizer.step()
             log_lik += -loss.item()*y_batch.shape[0]
@@ -209,6 +209,7 @@ def ntl(INFERENCE):
 
     # define Loss for GPs - the marginal log likelihood
     mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
+    #mll = VariationalELBO(likelihood, model, num_data=train_y.size(0))
 
     if torch.cuda.is_available():
         train_x = train_x.cuda()

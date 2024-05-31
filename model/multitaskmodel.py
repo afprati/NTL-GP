@@ -17,7 +17,7 @@ class MultitaskGPModel(gpytorch.models.ApproximateGP):
             - likelihood:
         '''
         # Sparse Variational Formulation
-        num_inducing = 20 #can change, higher more accurate but takes longer
+        num_inducing = 1000 #can change, higher more accurate but takes longer
         inducing_points = train_x[np.random.choice(train_x.size(0),num_inducing,replace=False),:]
         # trying to make sure inducing points do not have too many zeros; remove duplicates
         inducing_points = torch.unique(inducing_points, dim=0) # make rowwise unique
