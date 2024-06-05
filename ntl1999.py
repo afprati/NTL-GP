@@ -4,8 +4,8 @@ import torch
 import json
 import gpytorch
 print(gpytorch.__version__) # needs to be 1.8.1
-import pyro
-from pyro.infer.mcmc import NUTS, MCMC, HMC
+#import pyro
+#from pyro.infer.mcmc import NUTS, MCMC, HMC
 from model.multitaskmodel import MultitaskGPModel
 from utilities.savejson import savejson
 from utilities.visualize import visualize_synthetic, plot_posterior, plot_pyro_posterior,plot_pyro_prior
@@ -47,11 +47,11 @@ def train(train_x, train_y, model, likelihood, mll, optimizer, training_iteratio
             #with gpytorch.settings.cholesky_jitter(1e-2):
             output = model(x_batch)
             output_mean = output.mean.detach().cpu().numpy() 
-            #with gpytorch.settings.fast_computations(covar_root_decomposition=False, log_prob=False, solves=False):
-            loss = -mll(output, y_batch)
-            loss.backward()
-            optimizer.step()
-            log_lik += -loss.item()*y_batch.shape[0]
+            with gpytorch.settings.fast_computations(covar_root_decomposition=False, log_prob=False, solves=False):
+                loss = -mll(output, y_batch)
+                loss.backward()
+                optimizer.step()
+                log_lik += -loss.item()*y_batch.shape[0]
             if j % 50:
                 print('Epoch %d Iter %d - Loss: %.3f' % (i + 1, j+1, loss.item()))
         print('Epoch %d - log lik: %.3f' % (i + 1, log_lik))
@@ -134,6 +134,7 @@ def ntl(INFERENCE):
 
     # preprocess data
     data = pd.read_csv("data/data1999.csv",index_col=[0])
+    data = data[~data.obs_id.isin([867, 1690])]
     N = data.obs_id.unique().shape[0]
     data.date = data.date.apply(lambda x: datetime.datetime.strptime(x, '%m/%d/%Y').date())
     # data = data[(data.date<=datetime.date(2017, 9, 5)) & (data.date>=datetime.date(2017, 8, 25))]
@@ -208,8 +209,8 @@ def ntl(INFERENCE):
     likelihood.to(device)
 
     # define Loss for GPs - the marginal log likelihood
-    mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
-    #mll = VariationalELBO(likelihood, model, num_data=train_y.size(0))
+    #mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
+    mll = VariationalELBO(likelihood, model, num_data=train_y.size(0))
 
     if torch.cuda.is_available():
         train_x = train_x.cuda()
