@@ -4,8 +4,8 @@ import torch
 import json
 import gpytorch
 print(gpytorch.__version__) # needs to be 1.8.1
-#import pyro
-#from pyro.infer.mcmc import NUTS, MCMC, HMC
+import pyro
+from pyro.infer.mcmc import NUTS, MCMC, HMC
 from model.multitaskmodel import MultitaskGPModel
 from utilities.savejson import savejson
 from utilities.visualize import visualize_synthetic, plot_posterior, plot_pyro_posterior,plot_pyro_prior
@@ -28,7 +28,7 @@ smoke_test = ('CI' in os.environ)
 training_iterations = 2 if smoke_test else 10
 num_samples = 2 if smoke_test else 500
 warmup_steps = 2 if smoke_test else 500
-load_batch_size = 512 # can also be 512
+load_batch_size = 512 # can also be 256
 
 
 def train(train_x, train_y, model, likelihood, mll, optimizer, training_iterations):
