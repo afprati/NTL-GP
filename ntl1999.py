@@ -128,9 +128,9 @@ def synthetic(INFERENCE):
 def ntl(INFERENCE):
     device = torch.device('cpu')
     torch.set_default_tensor_type(torch.DoubleTensor)
-    if torch.cuda.is_available():
-        device = torch.device('cuda')
-        torch.set_default_tensor_type(torch.cuda.DoubleTensor)
+    #if torch.cuda.is_available():
+     #   device = torch.device('cuda')
+      #  torch.set_default_tensor_type(torch.cuda.DoubleTensor)
 
     # preprocess data
     data = pd.read_csv("data/data1999.csv",index_col=[0])
@@ -212,11 +212,11 @@ def ntl(INFERENCE):
     #mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
     mll = VariationalELBO(likelihood, model, num_data=train_y.size(0))
 
-    if torch.cuda.is_available():
-        train_x = train_x.cuda()
-        train_y = train_y.cuda()
-        model = model.cuda()
-        likelihood = likelihood.cuda()
+    #if torch.cuda.is_available():
+     #   train_x = train_x.cuda()
+      #  train_y = train_y.cuda()
+       # model = model.cuda()
+        #likelihood = likelihood.cuda()
 
     if not os.path.isdir("results"):
         os.mkdir("results")
