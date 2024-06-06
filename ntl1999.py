@@ -24,6 +24,8 @@ from torch.utils.data import TensorDataset, DataLoader
 
 torch.manual_seed(123)
 
+print("Done with setup")
+
 smoke_test = ('CI' in os.environ)
 training_iterations = 2 if smoke_test else 10
 num_samples = 2 if smoke_test else 500
@@ -133,8 +135,9 @@ def ntl(INFERENCE):
       #  torch.set_default_tensor_type(torch.cuda.DoubleTensor)
 
     # preprocess data
-    data = pd.read_csv("data/data1999.csv",index_col=[0])
+    data = pd.read_csv("data/data1999test.csv",index_col=[0])
     data = data[~data.obs_id.isin([867, 1690])]
+    print(data.shape)
     N = data.obs_id.unique().shape[0]
     data.date = data.date.apply(lambda x: datetime.datetime.strptime(x, '%m/%d/%Y').date())
     # data = data[(data.date<=datetime.date(2017, 9, 5)) & (data.date>=datetime.date(2017, 8, 25))]
@@ -337,8 +340,7 @@ def ntl(INFERENCE):
 
         return
 
-        #visualize_localnews_MCMC(data, train_x, train_y, train_g, test_x, test_y, test_i, model,\
-         #       likelihood, T0,  station_le, num_samples)
+        
     else:
         model.load_strict_shapes(False)
         state_dict = torch.load('results/ntl_MAP_model_state.pth')
@@ -359,7 +361,7 @@ def ntl(INFERENCE):
         print(f'Parameter name: drift ls value = {model.drift_t_module.base_kernel.lengthscale.detach().numpy()}')
         print(f'Parameter name: drift cov os value = {np.sqrt(model.drift_t_module.outputscale.detach().numpy())}')
 
-        visualize_ntl(data, test_x, test_y, test_g, model, model2, likelihood, T0, station_le, train_condition)
+        #visualize_ntl(data, test_x, test_y, test_g, model, model2, likelihood, T0, station_le, train_condition)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='python ntl1999.py --type lights --inference MAP')
@@ -367,6 +369,7 @@ if __name__ == "__main__":
     parser.add_argument('-i','--inference', help='MCMC/MAP/MAPLOAD/MCMCLOAD', required=True)
     args = vars(parser.parse_args())
     if args['type'] == 'lights':
+        print("starting NTL")
         ntl(INFERENCE=args['inference'])
     elif args['type'] == 'synthetic': 
         synthetic(INFERENCE=args['inference'])
