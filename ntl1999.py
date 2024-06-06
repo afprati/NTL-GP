@@ -8,8 +8,8 @@ import pyro
 from pyro.infer.mcmc import NUTS, MCMC, HMC
 from model.multitaskmodel import MultitaskGPModel
 from utilities.savejson import savejson
-from utilities.visualize import visualize_synthetic, plot_posterior, plot_pyro_posterior,plot_pyro_prior
-from utilities.visualize import visualize_localnews, visualize_localnews_MCMC, plot_prior
+from utilities.visualize_ntl import visualize_synthetic, plot_posterior, plot_pyro_posterior,plot_pyro_prior
+from utilities.visualize_ntl import visualize_ntl, plot_prior
 from utilities.synthetic import generate_synthetic_data
 from model.fixedeffect import TwoWayFixedEffectModel
 import pandas as pd
@@ -247,6 +247,8 @@ def ntl(INFERENCE):
         }
 
     # plot_pyro_prior(priors, transforms)
+    
+    visualize_ntl(data, test_x, test_y, test_g, model, model2, likelihood, T0, station_le, train_condition)
 
     def pyro_model(x, y):
         
@@ -268,8 +270,8 @@ def ntl(INFERENCE):
         for k, d in mcmc_samples.items():
             mcmc_samples[k] = d[idx]
         model.pyro_load_from_samples(mcmc_samples)
-        visualize_localnews_MCMC(data, train_x, train_y, train_i, test_x, test_y, test_i, model,\
-                likelihood, T0, station_le, 10)
+        #visualize_localnews_MCMC(data, train_x, train_y, train_i, test_x, test_y, test_i, model,\
+        #        likelihood, T0, station_le, 10)
         return
         
     elif INFERENCE=='MAP':
@@ -335,8 +337,8 @@ def ntl(INFERENCE):
 
         return
 
-        visualize_localnews_MCMC(data, train_x, train_y, train_g, test_x, test_y, test_i, model,\
-                likelihood, T0,  station_le, num_samples)
+        #visualize_localnews_MCMC(data, train_x, train_y, train_g, test_x, test_y, test_i, model,\
+         #       likelihood, T0,  station_le, num_samples)
     else:
         model.load_strict_shapes(False)
         state_dict = torch.load('results/ntl_MAP_model_state.pth')
@@ -357,7 +359,7 @@ def ntl(INFERENCE):
         print(f'Parameter name: drift ls value = {model.drift_t_module.base_kernel.lengthscale.detach().numpy()}')
         print(f'Parameter name: drift cov os value = {np.sqrt(model.drift_t_module.outputscale.detach().numpy())}')
 
-        visualize_localnews(data, test_x, test_y, test_g, model, model2, likelihood, T0, station_le, train_condition)
+        visualize_ntl(data, test_x, test_y, test_g, model, model2, likelihood, T0, station_le, train_condition)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='python ntl1999.py --type lights --inference MAP')
