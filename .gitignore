@@ -9,7 +9,6 @@ data/.Rhistory
 data/preprocess.R
 data/*.pdf
 data/segments_dd.csv
-results
 *.txt
 *.pkl
 *.prof
