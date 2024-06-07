@@ -30,7 +30,7 @@ smoke_test = ('CI' in os.environ)
 training_iterations = 2 if smoke_test else 10
 num_samples = 2 if smoke_test else 500
 warmup_steps = 2 if smoke_test else 500
-load_batch_size = 512 # can also be 256
+load_batch_size = 256 # can also be 512
 
 
 def train(train_x, train_y, model, likelihood, mll, optimizer, training_iterations):
@@ -49,11 +49,11 @@ def train(train_x, train_y, model, likelihood, mll, optimizer, training_iteratio
             #with gpytorch.settings.cholesky_jitter(1e-2):
             output = model(x_batch)
             output_mean = output.mean.detach().cpu().numpy() 
-            #with gpytorch.settings.fast_computations(covar_root_decomposition=False, log_prob=False, solves=False):
-            loss = -mll(output, y_batch)
-            loss.backward()
-            optimizer.step()
-            log_lik += -loss.item()*y_batch.shape[0]
+            with gpytorch.settings.fast_computations(covar_root_decomposition=False, log_prob=False, solves=False):
+                loss = -mll(output, y_batch)
+                loss.backward()
+                optimizer.step()
+                log_lik += -loss.item()*y_batch.shape[0]
             if j % 50:
                 print('Epoch %d Iter %d - Loss: %.3f' % (i + 1, j+1, loss.item()))
         print('Epoch %d - log lik: %.3f' % (i + 1, log_lik))
@@ -124,7 +124,7 @@ def synthetic(INFERENCE):
         mcmc_run.run(train_x, train_i, train_y)
         torch.save(model.state_dict(), 'results/synthetic_' + INFERENCE +'_model_state.pth')
 
-    visualize_synthetic(X_tr, X_co, Y_tr, Y_co, ATT, model, likelihood)
+    #visualize_synthetic(X_tr, X_co, Y_tr, Y_co, ATT, model, likelihood)
 
 
 def ntl(INFERENCE):
