@@ -135,7 +135,7 @@ def ntl(INFERENCE):
       #  torch.set_default_tensor_type(torch.cuda.DoubleTensor)
 
     # preprocess data
-    data = pd.read_csv("data/data1999test.csv",index_col=[0])
+    data = pd.read_csv("data/data1999.csv",index_col=[0])
     data = data[~data.obs_id.isin([867, 1690])]
     print(data.shape)
     N = data.obs_id.unique().shape[0]
