@@ -8,8 +8,8 @@ import pyro
 from pyro.infer.mcmc import NUTS, MCMC, HMC
 from model.multitaskmodel import MultitaskGPModel
 from utilities.savejson import savejson
-from utilities.visualize_ntl import plot_posterior, plot_pyro_posterior,plot_pyro_prior
-from utilities.visualize_ntl import visualize_ntl, plot_prior
+from utilities.visualize import plot_posterior, plot_pyro_posterior,plot_pyro_prior
+from utilities.visualize import visualize_localnews, plot_prior
 from utilities.synthetic import generate_synthetic_data
 from model.fixedeffect import TwoWayFixedEffectModel
 import pandas as pd
@@ -251,7 +251,7 @@ def ntl(INFERENCE):
 
     # plot_pyro_prior(priors, transforms)
     
-    visualize_ntl(data, test_x, test_y, test_g, model, model2, likelihood, T0, station_le, train_condition)
+    #visualize_ntl(data, test_x, test_y, test_g, model, model2, likelihood, T0, station_le, train_condition)
 
     def pyro_model(x, y):
         
