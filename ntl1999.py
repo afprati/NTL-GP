@@ -8,7 +8,7 @@ import pyro
 from pyro.infer.mcmc import NUTS, MCMC, HMC
 from model.multitaskmodel import MultitaskGPModel
 from utilities.savejson import savejson
-from utilities.visualize_ntl import visualize_synthetic, plot_posterior, plot_pyro_posterior,plot_pyro_prior
+from utilities.visualize_ntl import plot_posterior, plot_pyro_posterior,plot_pyro_prior
 from utilities.visualize_ntl import visualize_ntl, plot_prior
 from utilities.synthetic import generate_synthetic_data
 from model.fixedeffect import TwoWayFixedEffectModel
