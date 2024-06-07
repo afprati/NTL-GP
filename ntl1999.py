@@ -49,11 +49,11 @@ def train(train_x, train_y, model, likelihood, mll, optimizer, training_iteratio
             #with gpytorch.settings.cholesky_jitter(1e-2):
             output = model(x_batch)
             output_mean = output.mean.detach().cpu().numpy() 
-            with gpytorch.settings.fast_computations(covar_root_decomposition=False, log_prob=False, solves=False):
-                loss = -mll(output, y_batch)
-                loss.backward()
-                optimizer.step()
-                log_lik += -loss.item()*y_batch.shape[0]
+            #with gpytorch.settings.fast_computations(covar_root_decomposition=False, log_prob=False, solves=False):
+            loss = -mll(output, y_batch)
+            loss.backward()
+            optimizer.step()
+            log_lik += -loss.item()*y_batch.shape[0]
             if j % 50:
                 print('Epoch %d Iter %d - Loss: %.3f' % (i + 1, j+1, loss.item()))
         print('Epoch %d - log lik: %.3f' % (i + 1, log_lik))
