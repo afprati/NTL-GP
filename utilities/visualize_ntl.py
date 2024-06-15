@@ -6,7 +6,13 @@ from matplotlib import pyplot as plt
 import scipy.special as sps 
 import seaborn as sns
 import copy
+import datetime
+from sklearn.preprocessing import OneHotEncoder, LabelEncoder
+from model.multitaskmodel import MultitaskGPModel
 
+
+
+results = torch.load("results/ntl_MAP_model_state.pth")
 
 # Define plotting function
 def ax_plot(ax, test_t, X, Y, m, lower, upper, LABEL):

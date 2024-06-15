@@ -203,4 +203,3 @@ class PresentationModel(gpytorch.models.ExactGP):
         #     covar += indicator.mul(covar_c)
 
         return gpytorch.distributions.MultivariateNormal(mu.double(), covar.double())
-

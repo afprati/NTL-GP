@@ -24,13 +24,11 @@ from torch.utils.data import TensorDataset, DataLoader
 
 torch.manual_seed(123)
 
-print("Done with setup")
-
 smoke_test = ('CI' in os.environ)
-training_iterations = 2 if smoke_test else 10
-num_samples = 2 if smoke_test else 500
-warmup_steps = 2 if smoke_test else 500
-load_batch_size = 256 # can also be 512
+training_iterations = 2 if smoke_test else 1
+num_samples = 2 if smoke_test else 5
+warmup_steps = 2 if smoke_test else 5
+load_batch_size = 512 # can also be 256
 
 
 def train(train_x, train_y, model, likelihood, mll, optimizer, training_iterations):
@@ -48,7 +46,6 @@ def train(train_x, train_y, model, likelihood, mll, optimizer, training_iteratio
             optimizer.zero_grad()
             #with gpytorch.settings.cholesky_jitter(1e-2):
             output = model(x_batch)
-            output_mean = output.mean.detach().cpu().numpy() 
             with gpytorch.settings.fast_computations(covar_root_decomposition=False, log_prob=False, solves=False):
                 loss = -mll(output, y_batch)
                 loss.backward()
@@ -61,72 +58,6 @@ def train(train_x, train_y, model, likelihood, mll, optimizer, training_iteratio
     return model, likelihood
 
 
-def synthetic(INFERENCE):
-    # load configurations
-    with open('model/conf.json') as f:
-        configs = json.load(f)
-
-    N_tr = configs["N_tr"]
-    N_co = configs["N_co"]
-    N = N_tr + N_co
-    T = configs["T"]
-    #T0 = configs["T0"]
-    d = configs["d"]
-    noise_std = configs["noise_std"]
-    Delta = configs["treatment_effect"]
-    seed = configs["seed"]
-
-    X_tr, X_co, Y_tr, Y_co, ATT = generate_synthetic_data(N_tr, N_co, T, d, Delta, noise_std, seed)
-    train_x_tr = X_tr[:,:].reshape(-1,d+1)
-    train_x_co = X_co.reshape(-1,d+1)
-    train_y_tr = Y_tr[:,:].reshape(-1)
-    train_y_co = Y_co.reshape(-1)
-
-    train_x = torch.cat([train_x_tr, train_x_co])
-    train_y = torch.cat([train_y_tr, train_y_co])
-
-    # treat group 1, control group 0
-    train_i_tr = torch.full_like(train_y_tr, dtype=torch.long, fill_value=1)
-    train_i_co = torch.full_like(train_y_co, dtype=torch.long, fill_value=0)
-    train_i = torch.cat([train_i_tr, train_i_co])
-        
-    # fit = TwoWayFixedEffectModel(X_tr, X_co, Y_tr, Y_co, ATT, T0)
-    # return 
-    # train_x, train_y, train_i = build_gpytorch_data(X_tr, X_co, Y_tr, Y_co, T0)
-    
-    likelihood = gpytorch.likelihoods.GaussianLikelihood()
-    model = MultitaskGPModel((train_x, train_i), train_y, N, likelihood)
-
-    # "Loss" for GPs - the marginal log likelihood
-    mll = VariationalELBO(likelihood, model, num_data=train_y.size(0))
-
-    def pyro_model(x, i, y):
-        model.pyro_sample_from_prior()
-        output = model(x, i)
-        loss = mll.pyro_factor(output, y)
-        return y
-
-    if not os.path.isdir("results"):
-        os.mkdir("results")
-
-    if INFERENCE=='MAPLOAD':
-        model.load_strict_shapes(False)
-        state_dict = torch.load('results/synthetic_MAP_model_state.pth')
-        model.load_state_dict(state_dict)
-    elif INFERENCE=="MAP":
-         # Use the adam optimizer
-        optimizer = torch.optim.Adam(model.parameters(), lr=0.1)  # Includes GaussianLikelihood parameters
-        model, likelihood = train(train_x, train_i, train_y, model, likelihood, mll, optimizer)
-        torch.save(model.state_dict(), 'results/synthetic_' + INFERENCE + '_model_state.pth')
-    else:
-        nuts_kernel = NUTS(pyro_model, adapt_step_size=True)
-        mcmc_run = MCMC(nuts_kernel, num_samples=num_samples, warmup_steps=warmup_steps, disable_progbar=smoke_test)
-        mcmc_run.run(train_x, train_i, train_y)
-        torch.save(model.state_dict(), 'results/synthetic_' + INFERENCE +'_model_state.pth')
-
-    #visualize_synthetic(X_tr, X_co, Y_tr, Y_co, ATT, model, likelihood)
-
-
 def ntl(INFERENCE):
     device = torch.device('cpu')
     torch.set_default_tensor_type(torch.DoubleTensor)
@@ -135,7 +66,7 @@ def ntl(INFERENCE):
       #  torch.set_default_tensor_type(torch.cuda.DoubleTensor)
 
     # preprocess data
-    data = pd.read_csv("data/data1999.csv",index_col=[0])
+    data = pd.read_csv("data/data1999test.csv",index_col=[0])
     data = data[~data.obs_id.isin([867, 1690])]
     print(data.shape)
     N = data.obs_id.unique().shape[0]
@@ -371,7 +302,6 @@ if __name__ == "__main__":
     if args['type'] == 'lights':
         print("starting NTL")
         ntl(INFERENCE=args['inference'])
-    elif args['type'] == 'synthetic': 
-        synthetic(INFERENCE=args['inference'])
+
     else:
         exit()

@@ -350,6 +350,7 @@ def localnews(INFERENCE):
         print(f'Parameter name: drift cov T2 value = {model.drift_t_module.T2.detach().numpy()}')
 
         visualize_localnews(data, test_x, test_y, test_g, model, model2, likelihood, T0, station_le, train_condition)
+        #def visualize(test_t, X_tr, Y_tr, m_tr, lower_tr, upper_tr, X_co, Y_co, m_co, lower_co, upper_co, ATT, T0):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='python main.py --type localnews --inference MAP')
