@@ -16,7 +16,7 @@ results = torch.load("results/ntl_MAP_model_state.pth")
 
 # Define plotting function
 def ax_plot(ax, test_t, X, Y, m, lower, upper, LABEL):
-     for i in range(2):
+    for i in range(2):
           ax[i].plot(1+X[i, :,-1].detach().numpy(), Y[i,:].detach().numpy(),\
           color='grey', alpha=0.8, label=LABEL)
           ax[i].plot(1+test_t.detach().numpy(), m[i].detach().numpy(),\
@@ -25,29 +25,7 @@ def ax_plot(ax, test_t, X, Y, m, lower, upper, LABEL):
                upper[i].detach().numpy(), alpha=0.5)
           ax[i].legend(loc=2)
           ax[i].set_title("{} Unit {}".format(LABEL, i+1))
-
-
-def plot_pyro_prior(priors, transforms):
-    labels = ["rho", "group ls", "group os", "unit ls", "unit os", "noise","weekday", "day"]
-    # labels = ["rho", "group ls", "group os", "unit ls", "unit os", "noise"]
-    fig, axes = plt.subplots(figsize=(20, 10), nrows=2, ncols=4)
-    i = 0
-    for k, fn in transforms.items():
-         mu = priors[k].loc.item()
-         s = priors[k].scale.item()
-         samples = np.random.normal(mu,s,10000)
-         samples = fn(torch.from_numpy(samples)).numpy().reshape(-1)
-         if labels[i] in ["noise", "group os", "unit os", "day", "weekday"]:
-              samples = np.sqrt(samples)
-         sns.histplot(samples, ax=axes[int(i/4), int(i%4)])
-         axes[int(i/4)][int(i%4)].legend([labels[i]])
-         i = i + 1
-
-    fig.suptitle("Hyperparameter priors")
-    plt.savefig("results/pyropriors.png")
-     
-
-def plot_prior(model):
+          
     param_list = ["likelihood.noise_covar.noise_prior", "t_covar_module.outputscale_prior", "t_covar_module.base_kernel.lengthscale_prior"]
     xmax = [1,1,60]
     labels = ["noise", "os","ls"]
@@ -74,60 +52,9 @@ def plot_prior(model):
     plt.close()
     return 
 
-def plot_posterior(chain):
-    labels = ["noise", "group ls", "group os", "unit ls", "unit os", "rho"]
-    fig, axes = plt.subplots(nrows=2, ncols=3)
-    for i in range(6):
-        samples = 1/(1+np.exp(-1*getattr(chain, labels[i]).reshape(-1)))
-        if i>=2:
-            samples = np.sqrt(samples)
-        sns.distplot(samples, ax=axes[int(i/2), int(i%2)])
-        axes[int(i/2)][int(i%2)].legend([labels[i]])
 
-    fig.suptitle("Gamma posterior")
-    plt.savefig("results/gammaposterior.png")
-    plt.show()
-    return
-
-def plot_pyro_posterior(mcmc_samples, transforms):
-#     param_list = ["likelihood.noise_covar.noise_prior","group_t_covar_module.base_kernel.lengthscale_prior",
-#      "group_t_covar_module.outputscale_prior", "unit_t_covar_module.base_kernel.lengthscale_prior",
-#      "unit_t_covar_module.outputscale_prior", "task_covar_module.rho_prior"]
-    labels = ["rho", "group ls", "group os", "unit ls", "unit os", "noise","weekday", "day"]
-    # labels = ["rho", "group ls", "group os", "unit ls", "unit os", "noise"]
-    fig, axes = plt.subplots(figsize=(20, 10), nrows=2, ncols=4)
-    i = 0
-    for k, fn in transforms.items():
-         samples = fn(mcmc_samples["model$$$" + k]).numpy().reshape(-1)
-         if labels[i] in ["noise", "group os", "unit os", "day", "weekday"]:
-              samples = np.sqrt(samples)
-         sns.histplot(samples, ax=axes[int(i/4), int(i%4)])
-         axes[int(i/4)][int(i%4)].legend([labels[i]])
-         i = i + 1
-
-    fig.suptitle("Hyperparameter posterior")
-    plt.savefig("results/gammaposterior.png")
-
-#     fig, axes = plt.subplots(nrows=3, ncols=3)
-#     for i in range(9):
-#          s = 100*(i)
-#          e = 100*(i+1)
-#          samples = mcmc_samples[param_list[3]].numpy().reshape(-1)[s:e]
-#          sns.distplot(samples, ax=axes[int(i/3), int(i%3)])
-#          axes[int(i/3)][int(i%3)].legend([str(s)+":"+str(e)])
-
-#     fig.suptitle("Rho posterior")
-#     plt.savefig("results/gammaposteriorrho.png")
-
-    return 
-
-
-
-
-
-def visualize_ntl(data, test_x, test_y, test_g, model, model2, likelihood, T0, station_le, train_condition):
+def visualize_ntl(data, test_x, test_y, test_g, model, model2, likelihood, T0, obs_le, train_condition):
     # Set into eval mode
-
     model.eval()
     model2.eval()
     likelihood.eval()

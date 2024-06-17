@@ -9,7 +9,7 @@ from pyro.infer.mcmc import NUTS, MCMC, HMC
 from model.multitaskmodel import MultitaskGPModel
 from utilities.savejson import savejson
 from utilities.visualize import plot_posterior, plot_pyro_posterior,plot_pyro_prior
-from utilities.visualize import visualize_localnews, plot_prior
+from utilities.visualize_ntl import visualize_ntl
 from utilities.synthetic import generate_synthetic_data
 from model.fixedeffect import TwoWayFixedEffectModel
 import pandas as pd
@@ -25,9 +25,9 @@ from torch.utils.data import TensorDataset, DataLoader
 torch.manual_seed(123)
 
 smoke_test = ('CI' in os.environ)
-training_iterations = 2 if smoke_test else 1
-num_samples = 2 if smoke_test else 5
-warmup_steps = 2 if smoke_test else 5
+training_iterations = 2 if smoke_test else 70
+num_samples = 2 if smoke_test else 500
+warmup_steps = 2 if smoke_test else 500
 load_batch_size = 512 # can also be 256
 
 
@@ -66,7 +66,7 @@ def ntl(INFERENCE):
       #  torch.set_default_tensor_type(torch.cuda.DoubleTensor)
 
     # preprocess data
-    data = pd.read_csv("data/data1999test.csv",index_col=[0])
+    data = pd.read_csv("data/data1999.csv",index_col=[0])
     data = data[~data.obs_id.isin([867, 1690])]
     print(data.shape)
     N = data.obs_id.unique().shape[0]
@@ -82,10 +82,10 @@ def ntl(INFERENCE):
     Group = data.Treated.to_numpy().reshape(-1,1)
     ohe.fit(X)
     X = ohe.transform(X)
-    station_le = LabelEncoder()
+    obs_le = LabelEncoder()
     ids = data.obs_id.to_numpy().reshape(-1,)
-    station_le.fit(ids)
-    ids = station_le.transform(ids)
+    obs_le.fit(ids)
+    ids = obs_le.transform(ids)
     # weekday/day/unit effects and time trend
     X = np.concatenate((X.reshape(ds.shape[0],-1),ds,ids.reshape(-1,1),Group,ds), axis=1)
     # numbers of dummies for each effect
@@ -182,7 +182,7 @@ def ntl(INFERENCE):
 
     # plot_pyro_prior(priors, transforms)
     
-    #visualize_ntl(data, test_x, test_y, test_g, model, model2, likelihood, T0, station_le, train_condition)
+    visualize_ntl(data, test_x, test_y, test_g, model, model2, likelihood, T0, obs_le, train_condition)
 
     def pyro_model(x, y):
         
@@ -192,8 +192,6 @@ def ntl(INFERENCE):
         output = sampled_model.likelihood(sampled_model(x))
         pyro.sample("obs", output, obs=y)
     
-
-    if INFERENCE=='MCMCLOAD':
         with open('results/ntl_MCMC.pkl', 'rb') as f:
             mcmc_run = pickle.load(f)
         mcmc_samples = mcmc_run.get_samples()
@@ -205,10 +203,10 @@ def ntl(INFERENCE):
             mcmc_samples[k] = d[idx]
         model.pyro_load_from_samples(mcmc_samples)
         #visualize_localnews_MCMC(data, train_x, train_y, train_i, test_x, test_y, test_i, model,\
-        #        likelihood, T0, station_le, 10)
+        #        likelihood, T0, obs_le, 10)
         return
         
-    elif INFERENCE=='MAP':
+    if INFERENCE=='MAP':
         model.group_index_module._set_rho(0.0)
         model.group_t_covar_module.outputscale = 0.05**2  
         model.group_t_covar_module.base_kernel.lengthscale = 15
@@ -236,7 +234,6 @@ def ntl(INFERENCE):
 
         torch.save(model.state_dict(), 'results/ntl_' +  INFERENCE + '_model_state.pth')
         return
-    elif INFERENCE=='MCMC':
         model.group_index_module._set_rho(0.9)
         model.group_t_covar_module.outputscale = 0.02**2 
         model.group_t_covar_module.base_kernel._set_lengthscale(3)
@@ -292,7 +289,7 @@ def ntl(INFERENCE):
         print(f'Parameter name: drift ls value = {model.drift_t_module.base_kernel.lengthscale.detach().numpy()}')
         print(f'Parameter name: drift cov os value = {np.sqrt(model.drift_t_module.outputscale.detach().numpy())}')
 
-        #visualize_ntl(data, test_x, test_y, test_g, model, model2, likelihood, T0, station_le, train_condition)
+        #visualize_ntl(data, test_x, test_y, test_g, model, model2, likelihood, T0, obs_le, train_condition)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='python ntl1999.py --type lights --inference MAP')

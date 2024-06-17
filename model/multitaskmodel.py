@@ -6,6 +6,7 @@ import numpy as np
 from model.customizedkernel import myIndexKernel, constantKernel, myIndicatorKernel
 from model.customizedkernel import ConstantVectorMean, DriftScaleKernel, DriftIndicatorKernel
 from gpytorch.variational import CholeskyVariationalDistribution, VariationalStrategy
+from gpytorch.kernels import ScaleKernel, RBFKernel
 
 class MultitaskGPModel(gpytorch.models.ApproximateGP):
 
@@ -180,6 +181,9 @@ class PresentationModel(gpytorch.models.ExactGP):
                 outputscale_prior=unit_outputscale_prior if MAP else None)
 
         self.unit_indicator_module = myIndicatorKernel(num_tasks=len(train_x[:,-3].unique()))
+        
+        # unit time trend? Added June 14
+        self.unit_covar_module = ScaleKernel(RBFKernel(active_dims=0)*RBFKernel(active_dims=10))
 
     def forward(self, x):
         group = x[:,-2].reshape((-1,1)).long()
@@ -195,6 +199,11 @@ class PresentationModel(gpytorch.models.ExactGP):
         covar_unit_t = self.unit_t_covar_module(x)
         covar_unit_indicator = self.unit_indicator_module(units)
         covar = covar_group_t.mul(covar_group_index) + covar_unit_t.mul(covar_unit_indicator)
+        
+        # for unit time trend? Added June 14
+        unit_covar_x = self.unit_covar_module(x)
+        effect_covar_x = self.effect_covar_module(x)
+        covar_x = unit_covar_x + effect_covar_x
 
         # marginalize weekday/day/unit id effects
         # for j in range(len(self.X_max_v)):
@@ -202,4 +211,4 @@ class PresentationModel(gpytorch.models.ExactGP):
         #     indicator = self.x_indicator_module[j](x[:,j].long())
         #     covar += indicator.mul(covar_c)
 
-        return gpytorch.distributions.MultivariateNormal(mu.double(), covar.double())
+        return gpytorch.distributions.MultivariateNormal(mu.double(), covar.double(), covar_x)

@@ -10,6 +10,7 @@ import pandas as pd
 import numpy as np
 import datetime
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
+#from utilities.visualize_ntl import visualize_ntl
 
 
 torch.manual_seed(123)
@@ -45,9 +46,12 @@ Y = data.mean_ntl.to_numpy()
 T0 = data[data.date==datetime.date(1999, 1, 1)].period.to_numpy()[0]
 train_condition = (data.post!=1) | (data.Treated!=1)
 device = torch.device('cpu')
-train_x = torch.Tensor(X[train_condition], device=device).double()
-train_y = torch.Tensor(Y[train_condition], device=device).double()
-train_data = data[train_condition]
+#train_x = torch.Tensor(X[train_condition], device=device).double()
+#train_y = torch.Tensor(Y[train_condition], device=device).double()
+#train_data = data[train_condition]
+train_x = torch.tensor(X, device=device).double()
+train_y = torch.tensor(Y, device=device).double()
+train_data = data
 
 idx = data.Treated.to_numpy()
 train_g = torch.from_numpy(idx[train_condition]).to(device)
@@ -66,6 +70,13 @@ state_dict = torch.load('C:/Users/miame/OneDrive/Backups/Documents/GitHub/NTL-GP
 model.load_state_dict(state_dict)
 model2.load_state_dict(state_dict)
 
+
+
+# finding the posterior, using the train data
+# setting to eval mode
+model.eval()
+likelihood.eval()
+
 with torch.no_grad(), gpytorch.settings.fast_pred_var():
     out = likelihood(model(train_x))
     mu_f = out.mean
@@ -78,5 +89,7 @@ results = pd.DataFrame({"gpr_mean":mu_f})
 results['true_y'] = train_y
 results['gpr_lwr'] = lower
 results['gpr_upr'] = upper
-results.to_csv("./results/ntl_fitted_gpr.csv",index=False)
-train_data.to_csv("./results/ntl_train_data.csv",index=False)
+results.to_csv("C:/Users/miame/OneDrive/Backups/Documents/GitHub/NTL-GP/results/ntl_fitted_gpr.csv",index=False)
+train_data.to_csv("C:/Users/miame/OneDrive/Backups/Documents/GitHub/NTL-GP/results/ntl_train_data.csv",index=False)
+
+#visualize_ntl(data, test_x, test_y, test_g, model, model2, likelihood, T0, obs_le, train_condition)
