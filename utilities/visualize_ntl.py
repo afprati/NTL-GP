@@ -53,14 +53,12 @@ def ax_plot(ax, test_t, X, Y, m, lower, upper, LABEL):
     return 
 
 
-def visualize_ntl(data, test_x, test_y, test_g, model, model2, likelihood, T0, obs_le, train_condition):
+def visualize_ntl(data, test_x, test_y, test_g, model, likelihood, T0, obs_le, train_condition):
     # Set into eval mode
     model.eval()
-    model2.eval()
     likelihood.eval()
     for i in range(len(model.x_covar_module)):
         model.x_covar_module[i].c2 = torch.tensor(0.0**2)
-        model2.x_covar_module[i].c2 = torch.tensor(0.0**2)
 
     with torch.no_grad(), gpytorch.settings.prior_mode(True), gpytorch.settings.fast_computations(covar_root_decomposition=False, log_prob=False, solves=False):
         f_pred = model(test_x)
@@ -78,18 +76,9 @@ def visualize_ntl(data, test_x, test_y, test_g, model, model2, likelihood, T0, o
     result = result.groupby(['t','g'], as_index=False)[['m']].mean()
     m_1 = result[result.g==1].m.to_numpy()
 
-    with torch.no_grad(), gpytorch.settings.prior_mode(False), gpytorch.settings.fast_computations(covar_root_decomposition=False, log_prob=False, solves=False):
-        f_pred = model2(test_x)
-
-    result = pd.DataFrame({
-         "t":test_x[:,-1],
-         "g": test_g,
-         "m": f_pred.mean})
-    result = result.groupby(['t','g'], as_index=False)[['m']].mean()
-    m_0 = result[result.g==1].m.to_numpy()
 
     with torch.no_grad(), gpytorch.settings.fast_computations(covar_root_decomposition=False, log_prob=False, solves=False):
-         f_pred = model2(test_x)
+         f_pred = model(test_x)
 
     # Get lower and upper confidence bounds
     lower, upper = f_pred.confidence_region()
@@ -123,12 +112,10 @@ def visualize_ntl(data, test_x, test_y, test_g, model, model2, likelihood, T0, o
 
     model.unit_t_covar_module.outputscale = 0
     model.unit_mean_module.constantvector.data.fill_(0.0)
-    model2.unit_t_covar_module.outputscale = 0
-    model2.unit_mean_module.constantvector.data.fill_(0.0)
 
      # Make predictions
     with torch.no_grad(), gpytorch.settings.prior_mode(False), gpytorch.settings.fast_computations(covar_root_decomposition=False, log_prob=False, solves=False):
-         f_pred = model2(test_x)
+         f_pred = model(test_x)
 
     # Get lower and upper confidence bounds
     lower, upper = f_pred.confidence_region()
@@ -249,7 +236,7 @@ def visualize_ntl(data, test_x, test_y, test_g, model, model2, likelihood, T0, o
     std_p = np.sqrt(result[result.g==g].s2.to_numpy())
     lower_g = m_g - 1.96*std_p
     upper_g = m_g + 1.96*std_p
-    plt.plot(1+test_t,m_1-m_0,  c="blue", linestyle="--",linewidth=1, label='estimated Y(1)-Y(0)')
+    #plt.plot(1+test_t,m_1-m_0,  c="blue", linestyle="--",linewidth=1, label='estimated Y(1)-Y(0)')
     plt.fill_between(1+test_t, lower_g, upper_g, color='grey', alpha=fill_alpha[1], label="95% CI")
     plt.legend(loc=2)
     plt.title("Treatment Effect Trend ")
@@ -257,4 +244,3 @@ def visualize_ntl(data, test_x, test_y, test_g, model, model2, likelihood, T0, o
     plt.savefig("results/ntl_MAP_effect.png")
     plt.close()
     # plt.show()
-

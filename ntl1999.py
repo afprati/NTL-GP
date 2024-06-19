@@ -25,9 +25,9 @@ from torch.utils.data import TensorDataset, DataLoader
 torch.manual_seed(123)
 
 smoke_test = ('CI' in os.environ)
-training_iterations = 2 if smoke_test else 70
-num_samples = 2 if smoke_test else 500
-warmup_steps = 2 if smoke_test else 500
+training_iterations = 2 if smoke_test else 10 #70
+num_samples = 2 if smoke_test else 100 #500
+warmup_steps = 2 if smoke_test else 100 #500
 load_batch_size = 512 # can also be 256
 
 
@@ -61,24 +61,16 @@ def train(train_x, train_y, model, likelihood, mll, optimizer, training_iteratio
 def ntl(INFERENCE):
     device = torch.device('cpu')
     torch.set_default_tensor_type(torch.DoubleTensor)
-    #if torch.cuda.is_available():
-     #   device = torch.device('cuda')
-      #  torch.set_default_tensor_type(torch.cuda.DoubleTensor)
 
     # preprocess data
-    data = pd.read_csv("data/data1999.csv",index_col=[0])
+    data = pd.read_csv("data/data1999test.csv",index_col=[0])
     data = data[~data.obs_id.isin([867, 1690])]
-    print(data.shape)
-    N = data.obs_id.unique().shape[0]
     data.date = data.date.apply(lambda x: datetime.datetime.strptime(x, '%m/%d/%Y').date())
-    # data = data[(data.date<=datetime.date(2017, 9, 5)) & (data.date>=datetime.date(2017, 8, 25))]
-    # data = data[data.obs_id.isin([1345,3930])]
 
     ds = data['period'].to_numpy().reshape((-1,1))
-    ohe = OneHotEncoder()
     ohe = LabelEncoder()
     X = data.drop(columns=["obs_id", "date", "mean_ntl", "Treated",
-    "post","period"]).to_numpy().reshape(-1,) # , "weekday","affiliation","callsign"
+    "post","period"]).to_numpy().reshape(-1,) # econ_active_rate, literacy_rate, pop_hh_ratio, hindu_rate, polygamy_rate
     Group = data.Treated.to_numpy().reshape(-1,1)
     ohe.fit(X)
     X = ohe.transform(X)
@@ -86,8 +78,9 @@ def ntl(INFERENCE):
     ids = data.obs_id.to_numpy().reshape(-1,)
     obs_le.fit(ids)
     ids = obs_le.transform(ids)
-    # weekday/day/unit effects and time trend
-    X = np.concatenate((X.reshape(ds.shape[0],-1),ds,ids.reshape(-1,1),Group,ds), axis=1)
+    print(ids)
+    # covariates and time trend
+    X = np.concatenate((X.reshape(ds.shape[0],-1),ids.reshape(-1,1),Group,ds), axis=1)
     # numbers of dummies for each effect
     X_max_v = [np.max(X[:,i]).astype(int) for i in range(X.shape[1]-2)]
 
@@ -98,7 +91,7 @@ def ntl(INFERENCE):
     train_y = torch.Tensor(Y[train_condition], device=device).double()
 
     idx = data.Treated.to_numpy()
-    train_g = torch.from_numpy(idx[train_condition]).to(device)
+    train_g = torch.from_numpy(idx).to(device)
 
     test_x = torch.Tensor(X).double()
     test_y = torch.Tensor(Y).double()
@@ -109,31 +102,25 @@ def ntl(INFERENCE):
     likelihood = gpytorch.likelihoods.GaussianLikelihood(noise_prior=noise_prior if "MAP" in INFERENCE else None,\
             noise_constraint=gpytorch.constraints.Positive())
 
-    # likelihood2 = gpytorch.likelihoods.GaussianLikelihood(noise_prior=noise_prior if "MAP" in INFERENCE else None,\
-    #         noise_constraint=gpytorch.constraints.Positive())
 
     model = MultitaskGPModel(test_x, test_y, X_max_v, likelihood, MAP="MAP" in INFERENCE)
     model.drift_t_module.T0 = T0
-    model2 = MultitaskGPModel(train_x, train_y, X_max_v, likelihood, MAP="MAP" in INFERENCE)
-    # model2 = MultitaskGPModel(test_x, test_y, X_max_v, likelihood2, MAP="MAP" in INFERENCE)
-    # model2.drift_t_module.T0 = T0
-    model2.double()
 
     # group effects
     # model.x_covar_module[0].c2 = torch.var(train_y)
     # model.x_covar_module[0].raw_c2.requires_grad = False
 
-    # weekday/day/unit effects initialize to 0.05**2
+    # covariate effects initialize to 0.05**2
     for i in range(len(X_max_v)):
         model.x_covar_module[i].c2 = torch.tensor(0.05**2)
 
     # fix unit mean/variance by not requiring grad
-    model.x_covar_module[-1].raw_c2.requires_grad = False
+    #model.x_covar_module[-1].raw_c2.requires_grad = False
 
     # model.unit_mean_module.constant.data.fill_(0.12)
     # model.unit_mean_module.constant.requires_grad = False
-    model.group_mean_module.constantvector.data[0].fill_(0.11)
-    model.group_mean_module.constantvector.data[1].fill_(0.12)
+    model.group_mean_module.constantvector.data[0].fill_(0.8) # mean_ntl of control
+    model.group_mean_module.constantvector.data[1].fill_(0.6) # mean_ntl of treated
 
     # set precision to double tensors
     torch.set_default_tensor_type(torch.DoubleTensor)
@@ -143,14 +130,8 @@ def ntl(INFERENCE):
     likelihood.to(device)
 
     # define Loss for GPs - the marginal log likelihood
-    #mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, model)
     mll = VariationalELBO(likelihood, model, num_data=train_y.size(0))
 
-    #if torch.cuda.is_available():
-     #   train_x = train_x.cuda()
-      #  train_y = train_y.cuda()
-       # model = model.cuda()
-        #likelihood = likelihood.cuda()
 
     if not os.path.isdir("results"):
         os.mkdir("results")
@@ -163,8 +144,8 @@ def ntl(INFERENCE):
             'unit_t_covar_module.base_kernel.raw_lengthscale': model.unit_t_covar_module.base_kernel.raw_lengthscale_constraint.transform,
             'unit_t_covar_module.raw_outputscale': model.unit_t_covar_module.raw_outputscale_constraint.transform,
             'likelihood.noise_covar.raw_noise': likelihood.noise_covar.raw_noise_constraint.transform,
-            'x_covar_module.0.raw_c2': model.x_covar_module[0].raw_c2_constraint.transform,
-            'x_covar_module.1.raw_c2': model.x_covar_module[1].raw_c2_constraint.transform
+            #'x_covar_module.0.raw_c2': model.x_covar_module[0].raw_c2_constraint.transform,
+            #'x_covar_module.1.raw_c2': model.x_covar_module[1].raw_c2_constraint.transform
             #'x_covar_module.2.raw_c2': model.x_covar_module[2].raw_c2_constraint.transform
         }
 
@@ -175,14 +156,11 @@ def ntl(INFERENCE):
             'unit_t_covar_module.base_kernel.raw_lengthscale': pyro.distributions.Normal(30, 10).expand([1, 1]),
             'unit_t_covar_module.raw_outputscale': pyro.distributions.Normal(-7, 1),
             'likelihood.noise_covar.raw_noise': pyro.distributions.Normal(-7, 1).expand([1]),
-            'x_covar_module.0.raw_c2': pyro.distributions.Normal(-7, 1).expand([1]),
-            'x_covar_module.1.raw_c2': pyro.distributions.Normal(-7, 1).expand([1])
+            #'x_covar_module.0.raw_c2': pyro.distributions.Normal(-7, 1).expand([1]),
+            #'x_covar_module.1.raw_c2': pyro.distributions.Normal(-7, 1).expand([1])
             #'model.x_covar_module.2.raw_c2': pyro.distributions.Normal(-6, 1).expand([1])
         }
-
-    # plot_pyro_prior(priors, transforms)
     
-    visualize_ntl(data, test_x, test_y, test_g, model, model2, likelihood, T0, obs_le, train_condition)
 
     def pyro_model(x, y):
         
@@ -202,8 +180,7 @@ def ntl(INFERENCE):
         for k, d in mcmc_samples.items():
             mcmc_samples[k] = d[idx]
         model.pyro_load_from_samples(mcmc_samples)
-        #visualize_localnews_MCMC(data, train_x, train_y, train_i, test_x, test_y, test_i, model,\
-        #        likelihood, T0, obs_le, 10)
+    
         return
         
     if INFERENCE=='MAP':
@@ -214,7 +191,7 @@ def ntl(INFERENCE):
         model.unit_t_covar_module.outputscale = 0.05**2 
         model.unit_t_covar_module.base_kernel.lengthscale = 30
 
-        # weekday/day/unit effects initialize to 0.01**2
+        # covariate effects initialize to 0.01**2
         for i in range(len(X_max_v)):
             model.x_covar_module[i].c2 = torch.tensor(0.05**2)
 
@@ -241,7 +218,7 @@ def ntl(INFERENCE):
         model.unit_t_covar_module.outputscale = 0.02**2 
         model.unit_t_covar_module.base_kernel._set_lengthscale(30)
        
-        # weekday/day/unit effects initialize to 0.0**2
+        # covariate effects initialize to 0.0**2
 
         for i in range(len(X_max_v)-1):
             model.x_covar_module[i].c2 = torch.tensor(0.01**2)
@@ -253,8 +230,9 @@ def ntl(INFERENCE):
             'unit_t_covar_module.base_kernel.lengthscale_prior':  model.unit_t_covar_module.base_kernel.raw_lengthscale.detach(),\
             'unit_t_covar_module.outputscale_prior': model.unit_t_covar_module.raw_outputscale.detach(),\
             'likelihood.noise_covar.noise_prior': likelihood.raw_noise.detach(),
-            'x_covar_module.0.c2_prior': model.x_covar_module[0].raw_c2.detach(),
-            'x_covar_module.1.c2_prior': model.x_covar_module[1].raw_c2.detach()}
+            #'x_covar_module.0.c2_prior': model.x_covar_module[0].raw_c2.detach(),
+            #'x_covar_module.1.c2_prior': model.x_covar_module[1].raw_c2.detach()
+            }
 
         with gpytorch.settings.fast_computations(covar_root_decomposition=False, log_prob=False, solves=False):
             nuts_kernel = NUTS(pyro_model, adapt_step_size=True, adapt_mass_matrix=True, jit_compile=False,\
@@ -273,7 +251,6 @@ def ntl(INFERENCE):
         model.load_strict_shapes(False)
         state_dict = torch.load('results/ntl_MAP_model_state.pth')
         model.load_state_dict(state_dict)
-        model2.load_state_dict(state_dict)
 
         print(f'Parameter name: rho value = {model.group_index_module.rho.detach().numpy()}')
         # print(f'Parameter name: unit mean value = {model.unit_mean_module.constant.detach().numpy()}')
