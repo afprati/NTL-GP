@@ -1,14 +1,7 @@
 library(tidyverse)
 library(ggplot2)
 
-ntl_fitted_gpr <- read.csv("~/GitHub/NTL-GP/results/ntl_fitted_gpr.csv")
-ntl_train_data <- read.csv("~/GitHub/NTL-GP/results/ntl_train_data.csv")
-
-nrow(ntl_fitted_gpr)==nrow(ntl_train_data)
-
-data <- cbind(ntl_fitted_gpr %>% select(-period), ntl_train_data)
-head(data)
-
+data <- read.csv("~/GitHub/NTL-GP/results/ntl_fitted_gpr.csv")
 
 data %>%
   group_by(Treated, period) %>%
@@ -25,7 +18,8 @@ means <- data %>%
   group_by(Treated, period) %>%
   summarize(group_mean = mean(gpr_mean, na.rm=T),
             group_lower = mean(gpr_lwr, na.rm=T),
-            group_upper = mean(gpr_upr, na.rm=T))
+            group_upper = mean(gpr_upr, na.rm=T),
+            t0_mean = mean(t0_mean, na.rm=T))
 
 
 ggplot() +
@@ -36,4 +30,33 @@ ggplot() +
   theme_minimal()
 
 ggplot() +
-  geom_line(data=data, aes(x=period, y=t1_mean-t0_mean))
+  geom_line(data=means %>% filter(Treated==1), 
+            aes(x=period, y=group_mean-t0_mean))
+
+
+data %>% group_by(Treated, period) %>% summarize(mean_raw = mean(true_y)) %>% ggplot() + geom_line(aes(x=period, y=mean_raw, color=as.factor(Treated)))
+data %>% group_by(Treated, period) %>% summarize(mean_gpr = mean(gpr_mean)) %>% ggplot() + geom_line(aes(x=period, y=mean_gpr, color=as.factor(Treated)))
+
+data %>% 
+  group_by(Treated, period) %>% 
+  summarize(mean_gpr = mean(gpr_mean),
+            mean_raw = mean(true_y),
+            mean_ctr = mean(t0_mean)) %>% 
+  ggplot() + 
+  geom_line(aes(x=period, y=mean_gpr, color=as.factor(Treated))) +
+  geom_line(aes(x=period, y=mean_ctr, color=as.factor(Treated)), linetype="dashed")
+
+
+with(data, plot(gpr_mean, true_y))
+with(data, cor(gpr_mean, true_y))
+
+
+
+
+
+
+temp <- data %>% 
+  group_by(Treated, period) %>%
+  summarize(mean_raw = mean(true_y),
+            mean_gpr = mean(gpr_mean))
+\

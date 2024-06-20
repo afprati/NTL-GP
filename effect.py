@@ -7,26 +7,33 @@ from model.multitaskmodel import MultitaskGPModel
 import pandas as pd
 import numpy as np
 import datetime
-from sklearn.preprocessing import OneHotEncoder, LabelEncoder
+from sklearn.preprocessing import LabelEncoder
+from torch.utils.data import TensorDataset, DataLoader
+from utilities.data_prep import data_prep
+load_batch_size = 512 # can also be 256
 
 
 torch.manual_seed(123)
+
+data = pd.read_csv("data/data1999.csv",index_col=[0])
+
+#data_prep(data)
 
 # define likelihood
 noise_prior = gpytorch.priors.GammaPrior(concentration=1,rate=10)
 likelihood = gpytorch.likelihoods.GaussianLikelihood(noise_prior=noise_prior, noise_constraint=gpytorch.constraints.Positive())
 
 # preprocess data
-data = pd.read_csv("C:/Users/miame/OneDrive/Backups/Documents/GitHub/NTL-GP/data/data1999test.csv",index_col=[0])
+data = pd.read_csv("C:/Users/miame/OneDrive/Backups/Documents/GitHub/NTL-GP/data/data1999.csv",index_col=[0])
 data = data[~data.obs_id.isin([867, 1690])]
+mask = (data.post==1) & (data.Treated==1)
 print(data.shape)
 N = data.obs_id.unique().shape[0]
 data.date = data.date.apply(lambda x: datetime.datetime.strptime(x, '%m/%d/%Y').date())
 
 ds = data['period'].to_numpy().reshape((-1,1))
 ohe = LabelEncoder()
-X = data.drop(columns=["obs_id", "date", "mean_ntl", "Treated",
-"post","period"]).to_numpy().reshape(-1,) 
+X = data.drop(columns=["obs_id", "date", "mean_ntl", "Treated", "post","period"]).to_numpy().reshape(-1,) 
 Group = data.Treated.to_numpy().reshape(-1,1)
 ohe.fit(X)
 X = ohe.transform(X)
@@ -43,17 +50,16 @@ T0 = data[data.date==datetime.date(1999, 1, 1)].period.to_numpy()[0]
 device = torch.device('cpu')
 train_x = torch.Tensor(X, device=device).double()
 train_y = torch.Tensor(Y, device=device).double()
-train_data = data
 
-idx = data.Treated.to_numpy()
-train_g = torch.from_numpy(idx).to(device)
+#idx = data.Treated.to_numpy()
+#train_g = torch.from_numpy(idx).to(device)
 
-test_x = torch.Tensor(X).double()
+#test_x = torch.Tensor(X).double()
 test_y = torch.Tensor(Y).double()
-test_g = torch.from_numpy(idx)
+#test_g = torch.from_numpy(idx)
 
 
-model = MultitaskGPModel(test_x, test_y, X_max_v, likelihood, MAP="MAP")
+model = MultitaskGPModel(train_x, train_y, X_max_v, likelihood, MAP="MAP")
 model.drift_t_module.T0 = T0
 
 model.load_strict_shapes(False)
@@ -66,53 +72,78 @@ model.load_state_dict(state_dict)
 model.eval()
 likelihood.eval()
 
-with torch.no_grad(), gpytorch.settings.fast_pred_var():
-    model(train_x)
-    out = likelihood(model(train_x))
-    mu_f = out.mean
-    V = out.covariance_matrix
-    L = torch.linalg.cholesky(V, upper=False)
-    lower, upper = out.confidence_region()
+train_dataset = TensorDataset(train_x, train_y)
+train_loader = DataLoader(train_dataset, batch_size=load_batch_size, shuffle=False)
+mu_f_full = []
+lower_full = []
+upper_full = []
 
-RMSE = np.square((out.mean - train_y).detach().numpy()).mean()**0.5
+
+with torch.no_grad(), gpytorch.settings.fast_pred_var():
+    for j, (x_batch, y_batch) in enumerate(train_loader):
+        print(j)
+        out = likelihood(model(x_batch))
+        mu_f = out.mean
+        lower, upper = out.confidence_region()
+        mu_f_full.append(mu_f)
+        lower_full.append(lower)
+        upper_full.append(upper)
+
+mu_f_np = torch.concatenate(mu_f_full, dim=0).numpy()
+lower_np = torch.concatenate(lower_full, dim=0).numpy()
+upper_np = torch.concatenate(upper_full, dim=0).numpy()
+
+RMSE = np.square(mu_f_np - train_y.numpy()).mean()**0.5
 print(RMSE)
 
-# finding effect
-
-test_x1 = train_x.clone().detach().requires_grad_(False)
-test_x1[:,-2] = 1
+# finding effect/counterfactuals
 test_x0 = train_x.clone().detach().requires_grad_(False)
 test_x0[:,-2] = 0
 
+train_dataset = TensorDataset(test_x0, train_y)
+train_loader = DataLoader(train_dataset, batch_size=load_batch_size, shuffle=False)
+out0_full = []
+lower0_full = []
+upper0_full = []
+
+
 with torch.no_grad(), gpytorch.settings.fast_pred_var():
-    out1 = likelihood(model(test_x1))
-    out0 = likelihood(model(test_x0))
-    V1 = out1.covariance_matrix
-    V0 = out0.covariance_matrix
-    L0 = torch.linalg.cholesky(V0, upper=False)
-    lower1, upper1 = out1.confidence_region()
-    lower0, upper0 = out0.confidence_region()
+    for j, (x_batch, y_batch) in enumerate(train_loader):
+        print(j)
+        out0 = model(x_batch)
+        lower0, upper0 = out0.confidence_region()
+        out0_full.append(out0.mean)
+        lower0_full.append(lower0)
+        upper0_full.append(upper0)
+
+
+out0_np = torch.concatenate(out0_full, dim=0).numpy()
+lower0_np = torch.concatenate(lower0_full, dim=0).numpy()
+upper0_np = torch.concatenate(upper0_full, dim=0).numpy()
+
+
     
-effect = out1.mean.numpy().mean() - out0.mean.numpy().mean()
-effect_std = np.sqrt((out1.mean.numpy().mean()+out0.mean.numpy().mean())) / np.sqrt(train_x.size()[0])
+effect = mu_f_np[mask].mean() - out0_np[mask].mean()
+effect_std = np.sqrt((mu_f_np[mask].var() + out0_np[mask].var())) / np.sqrt(train_x.numpy()[mask].shape[0])
 #BIC = (2+4+6+1)*torch.log(torch.tensor(train_x.size()[0])) + 2*loss*train_x.size()[0]
-print("ATE: {:0.3f} +- {:0.3f}\n".format(effect, effect_std))
+print("ATT: {:0.3f} +- {:0.3f}\n".format(effect, effect_std))
 #print("model evidence: {:0.3f} \n".format(-loss*train_x.size()[0]))
 #print("BIC: {:0.3f} \n".format(BIC))
 
-results = pd.DataFrame({"gpr_mean":mu_f})
+results = pd.DataFrame({"gpr_mean":mu_f_np})
 results['true_y'] = train_y
-results['gpr_lwr'] = lower
-results['gpr_upr'] = upper
-results['t1_mean'] = out1.mean
-results['t1_lwr'] = lower1
-results['t1_upr'] = upper1
-results['t0_mean'] = out0.mean
-results['t0_lwr'] = lower0
-results['t0_upr'] = upper0
-results['period'] = train_data['period']
+results['gpr_lwr'] = lower_np
+results['gpr_upr'] = upper_np
+results['t0_mean'] = out0_np
+results['t0_lwr'] = lower0_np
+results['t0_upr'] = upper0_np
+results['Treated'] = data.set_index(results.index)['Treated']
+results['obs_id'] = data.set_index(results.index)['obs_id']
+results['period'] = data.set_index(results.index)['period']
+
 results.to_csv("C:/Users/miame/OneDrive/Backups/Documents/GitHub/NTL-GP/results/ntl_fitted_gpr.csv",index=False)
-train_data.to_csv("C:/Users/miame/OneDrive/Backups/Documents/GitHub/NTL-GP/results/ntl_train_data.csv",index=False)
+
+
 
 
 print('done')
