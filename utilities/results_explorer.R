@@ -3,6 +3,16 @@ library(ggplot2)
 
 data <- read.csv("~/GitHub/NTL-GP/results/ntl_fitted_gpr.csv")
 
+small <- read.csv("~/GitHub/NTL-GP/data/data1999test.csv")
+
+small %>%
+  group_by(Treated, period) %>%
+  summarize(mean_group=mean(mean_ntl)) %>%
+  ggplot() +
+  geom_line(aes(x=period, y=mean_group, color=as.factor(Treated))) +
+  geom_vline(xintercept = 8) +
+  theme_minimal()
+
 data %>%
   group_by(Treated, period) %>%
   summarize(group_mean = mean(gpr_mean, na.rm=T),
@@ -53,10 +63,3 @@ with(data, cor(gpr_mean, true_y))
 
 
 
-
-
-temp <- data %>% 
-  group_by(Treated, period) %>%
-  summarize(mean_raw = mean(true_y),
-            mean_gpr = mean(gpr_mean))
-\

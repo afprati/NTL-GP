@@ -6,8 +6,6 @@ import gpytorch
 from model.multitaskmodel import MultitaskGPModel
 import pandas as pd
 import numpy as np
-import datetime
-from sklearn.preprocessing import LabelEncoder
 from torch.utils.data import TensorDataset, DataLoader
 from utilities.data_prep import data_prep
 load_batch_size = 512 # can also be 256
@@ -15,57 +13,13 @@ load_batch_size = 512 # can also be 256
 
 torch.manual_seed(123)
 
-data = pd.read_csv("data/data1999.csv",index_col=[0])
+train_x, train_y, test_x, test_y, X_max_v, T0, likelihood, data = data_prep(INFERENCE="MAP", training=0)
 
-#data_prep(data)
-
-# define likelihood
-noise_prior = gpytorch.priors.GammaPrior(concentration=1,rate=10)
-likelihood = gpytorch.likelihoods.GaussianLikelihood(noise_prior=noise_prior, noise_constraint=gpytorch.constraints.Positive())
-
-# preprocess data
-data = pd.read_csv("C:/Users/miame/OneDrive/Backups/Documents/GitHub/NTL-GP/data/data1999.csv",index_col=[0])
-data = data[~data.obs_id.isin([867, 1690])]
-mask = (data.post==1) & (data.Treated==1)
-print(data.shape)
-N = data.obs_id.unique().shape[0]
-data.date = data.date.apply(lambda x: datetime.datetime.strptime(x, '%m/%d/%Y').date())
-
-ds = data['period'].to_numpy().reshape((-1,1))
-ohe = LabelEncoder()
-X = data.drop(columns=["obs_id", "date", "mean_ntl", "Treated", "post","period"]).to_numpy().reshape(-1,) 
-Group = data.Treated.to_numpy().reshape(-1,1)
-ohe.fit(X)
-X = ohe.transform(X)
-obs_le = LabelEncoder()
-ids = data.obs_id.to_numpy().reshape(-1,)
-obs_le.fit(ids)
-ids = obs_le.transform(ids)
-print(ids)
-X = np.concatenate((X.reshape(ds.shape[0],-1),ids.reshape(-1,1),Group,ds), axis=1)
-X_max_v = [np.max(X[:,i]).astype(int) for i in range(X.shape[1]-2)]
-
-Y = data.mean_ntl.to_numpy()
-T0 = data[data.date==datetime.date(1999, 1, 1)].period.to_numpy()[0]
-device = torch.device('cpu')
-train_x = torch.Tensor(X, device=device).double()
-train_y = torch.Tensor(Y, device=device).double()
-
-#idx = data.Treated.to_numpy()
-#train_g = torch.from_numpy(idx).to(device)
-
-#test_x = torch.Tensor(X).double()
-test_y = torch.Tensor(Y).double()
-#test_g = torch.from_numpy(idx)
-
-
-model = MultitaskGPModel(train_x, train_y, X_max_v, likelihood, MAP="MAP")
-model.drift_t_module.T0 = T0
+model = MultitaskGPModel(train_x, train_y, X_max_v, likelihood)
 
 model.load_strict_shapes(False)
 state_dict = torch.load('C:/Users/miame/OneDrive/Backups/Documents/GitHub/NTL-GP/results/ntl_MAP_model_state.pth')
 model.load_state_dict(state_dict)
-
 
 # finding the posterior, using the train data
 # setting to eval mode
@@ -94,7 +48,7 @@ lower_np = torch.concatenate(lower_full, dim=0).numpy()
 upper_np = torch.concatenate(upper_full, dim=0).numpy()
 
 RMSE = np.square(mu_f_np - train_y.numpy()).mean()**0.5
-print(RMSE)
+print("RMSE: ", RMSE)
 
 # finding effect/counterfactuals
 test_x0 = train_x.clone().detach().requires_grad_(False)
@@ -122,7 +76,7 @@ lower0_np = torch.concatenate(lower0_full, dim=0).numpy()
 upper0_np = torch.concatenate(upper0_full, dim=0).numpy()
 
 
-    
+mask = (data.post==1) & (data.Treated==1)
 effect = mu_f_np[mask].mean() - out0_np[mask].mean()
 effect_std = np.sqrt((mu_f_np[mask].var() + out0_np[mask].var())) / np.sqrt(train_x.numpy()[mask].shape[0])
 #BIC = (2+4+6+1)*torch.log(torch.tensor(train_x.size()[0])) + 2*loss*train_x.size()[0]
