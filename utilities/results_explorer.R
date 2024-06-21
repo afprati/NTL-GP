@@ -1,7 +1,17 @@
 library(tidyverse)
 library(ggplot2)
 
-data <- read.csv("~/GitHub/NTL-GP/results/ntl_fitted_gpr.csv")
+data <- read.csv("~/Documents/GitHub/NTL-GP/results/ntl_fitted_gpr.csv")
+
+data %>% 
+  group_by(Treated, period) %>% 
+  summarize(mean_gpr = mean(gpr_mean),
+            mean_raw = mean(true_y),
+            mean_ctr = mean(t0_mean)) %>% 
+  ggplot() + 
+  geom_line(aes(x=period, y=mean_gpr, color=as.factor(Treated))) +
+  geom_line(aes(x=period, y=mean_ctr, color=as.factor(Treated)), linetype="dashed") +
+  geom_line(aes(x=period, y=mean_raw, color=as.factor(Treated)), linetype="dotted")
 
 data %>%
   group_by(Treated, period) %>%
@@ -59,4 +69,4 @@ temp <- data %>%
   group_by(Treated, period) %>%
   summarize(mean_raw = mean(true_y),
             mean_gpr = mean(gpr_mean))
-\
+

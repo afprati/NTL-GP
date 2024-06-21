@@ -32,24 +32,19 @@ def data_prep(INFERENCE):
     ids = data.obs_id.to_numpy().reshape(-1,)
     obs_le.fit(ids)
     ids = obs_le.transform(ids)
-    print(ids)
+
     # covariates and time trend
-    X = np.concatenate((X.reshape(ds.shape[0],-1),ids.reshape(-1,1),Group,ds), axis=1)
-    # numbers of dummies for each effect
-    X_max_v = [np.max(X[:,i]).astype(int) for i in range(X.shape[1]-2)]
-
-    Y = data.mean_ntl.to_numpy()
     T0 = data[data.date==datetime.date(1999, 1, 1)].period.to_numpy()[0]
-    train_condition = (data.post!=1) | (data.Treated!=1)
-    train_x = torch.Tensor(X[train_condition], device=device).double()
-    train_y = torch.Tensor(Y[train_condition], device=device).double()
+    post = ((Group==1) & (ds>=T0)).reshape(-1,1)
+    X = np.concatenate((X.reshape(ds.shape[0],-1),ids.reshape(-1,1),Group,ds, post), axis=1)
+    Y = data.mean_ntl.to_numpy()
+    
+#     train_condition = (data.post!=1) | (data.Treated!=1)
+#     train_x = torch.Tensor(X[train_condition], device=device).double()
+#     train_y = torch.Tensor(Y[train_condition], device=device).double()
 
-    idx = data.Treated.to_numpy()
-    #train_g = torch.from_numpy(idx).to(device)
-
-    test_x = torch.Tensor(X).double()
-    test_y = torch.Tensor(Y).double()
-    #test_g = torch.from_numpy(idx)
+    train_x = torch.Tensor(X).double()
+    train_y = torch.Tensor(Y).double()
     
     # define likelihood
     noise_prior = gpytorch.priors.GammaPrior(concentration=1,rate=10)
@@ -57,4 +52,4 @@ def data_prep(INFERENCE):
             noise_constraint=gpytorch.constraints.Positive())
     print("data loaded")
     
-    return train_x, train_y, test_x, test_y, X_max_v, T0, likelihood
+    return train_x, train_y, T0, likelihood
