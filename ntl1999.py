@@ -53,7 +53,7 @@ def train(train_x, train_y, model, likelihood, mll, optimizer, training_iteratio
                 loss.backward()
                 optimizer.step()
                 log_lik += -loss.item()*y_batch.shape[0]
-            if j % 50:
+            if j % 20 == 0:
                 print('Epoch %d Iter %d - Loss: %.3f' % (i + 1, j+1, loss.item()))
         print('Epoch %d - log lik: %.3f' % (i + 1, log_lik))
 
@@ -63,9 +63,7 @@ def train(train_x, train_y, model, likelihood, mll, optimizer, training_iteratio
 def ntl(INFERENCE):
     train_x, train_y, test_x, test_y, X_max_v, T0, likelihood = data_prep(INFERENCE)
     
-    
-    model = MultitaskGPModel(test_x, test_y, X_max_v, likelihood, MAP="MAP" in INFERENCE)
-    model.drift_t_module.T0 = T0
+    model = MultitaskGPModel(test_x, test_y, X_max_v, likelihood, T0, MAP="MAP" in INFERENCE)
 
     # group effects
     # model.x_covar_module[0].c2 = torch.var(train_y)

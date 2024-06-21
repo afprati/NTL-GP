@@ -24,7 +24,7 @@ noise_prior = gpytorch.priors.GammaPrior(concentration=1,rate=10)
 likelihood = gpytorch.likelihoods.GaussianLikelihood(noise_prior=noise_prior, noise_constraint=gpytorch.constraints.Positive())
 
 # preprocess data
-data = pd.read_csv("C:/Users/miame/OneDrive/Backups/Documents/GitHub/NTL-GP/data/data1999.csv",index_col=[0])
+data = pd.read_csv("./data/data1999.csv",index_col=[0])
 data = data[~data.obs_id.isin([867, 1690])]
 mask = (data.post==1) & (data.Treated==1)
 print(data.shape)
@@ -58,12 +58,10 @@ train_y = torch.Tensor(Y, device=device).double()
 test_y = torch.Tensor(Y).double()
 #test_g = torch.from_numpy(idx)
 
-
-model = MultitaskGPModel(train_x, train_y, X_max_v, likelihood, MAP="MAP")
-model.drift_t_module.T0 = T0
+model = MultitaskGPModel(train_x, train_y, X_max_v, likelihood, T0, MAP="MAP")
 
 model.load_strict_shapes(False)
-state_dict = torch.load('C:/Users/miame/OneDrive/Backups/Documents/GitHub/NTL-GP/results/ntl_MAP_model_state.pth')
+state_dict = torch.load('./results/ntl_MAP_model_state.pth')
 model.load_state_dict(state_dict)
 
 
@@ -82,16 +80,16 @@ upper_full = []
 with torch.no_grad(), gpytorch.settings.fast_pred_var():
     for j, (x_batch, y_batch) in enumerate(train_loader):
         print(j)
-        out = likelihood(model(x_batch))
+        out = model(x_batch)
         mu_f = out.mean
         lower, upper = out.confidence_region()
         mu_f_full.append(mu_f)
         lower_full.append(lower)
         upper_full.append(upper)
 
-mu_f_np = torch.concatenate(mu_f_full, dim=0).numpy()
-lower_np = torch.concatenate(lower_full, dim=0).numpy()
-upper_np = torch.concatenate(upper_full, dim=0).numpy()
+mu_f_np = torch.concat(mu_f_full, dim=0).numpy()
+lower_np = torch.concat(lower_full, dim=0).numpy()
+upper_np = torch.concat(upper_full, dim=0).numpy()
 
 RMSE = np.square(mu_f_np - train_y.numpy()).mean()**0.5
 print(RMSE)
@@ -117,9 +115,9 @@ with torch.no_grad(), gpytorch.settings.fast_pred_var():
         upper0_full.append(upper0)
 
 
-out0_np = torch.concatenate(out0_full, dim=0).numpy()
-lower0_np = torch.concatenate(lower0_full, dim=0).numpy()
-upper0_np = torch.concatenate(upper0_full, dim=0).numpy()
+out0_np = torch.concat(out0_full, dim=0).numpy()
+lower0_np = torch.concat(lower0_full, dim=0).numpy()
+upper0_np = torch.concat(upper0_full, dim=0).numpy()
 
 
     

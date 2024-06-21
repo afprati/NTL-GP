@@ -10,7 +10,7 @@ from gpytorch.kernels import ScaleKernel, RBFKernel
 
 class MultitaskGPModel(gpytorch.models.ApproximateGP):
 
-    def __init__(self, train_x, train_y, X_max_v, likelihood, MAP=True, seed=123):
+    def __init__(self, train_x, train_y, X_max_v, likelihood, T0=0, MAP=True, seed=123):
         '''
         Inputs:
             - train_x:
@@ -43,8 +43,9 @@ class MultitaskGPModel(gpytorch.models.ApproximateGP):
         # treatment/control groups
         self.num_groups = 2 
         self.num_units = len(train_x[:,-3].unique()) # unit index
+        self.T0 = T0
 
-        # categoritcal features: group/weekday/day/unit id
+        # covariate effects
         self.X_max_v = X_max_v
         # dim of covariates
         self.d = list(train_x.shape)[1] - 3 # to correspond to unit index
@@ -113,7 +114,7 @@ class MultitaskGPModel(gpytorch.models.ApproximateGP):
         covar = covar_group_t.mul(covar_group_index) + covar_unit_t.mul(covar_unit_indicator) # multiplied bc of .mul
 
         #if self.drift_t_module.T0 is not None: aka prior on treatment
-        covar_drift_indicator = self.drift_indicator_module(group)
+        covar_drift_indicator = self.drift_indicator_module((group==1) & (ts>=self.T0).reshape(-1,1))
         covar_drift_t = self.drift_t_module(x)
         covar += covar_drift_t.mul(covar_drift_indicator)
         
