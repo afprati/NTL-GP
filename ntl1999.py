@@ -21,7 +21,7 @@ import dill as pickle
 torch.manual_seed(123)
 
 smoke_test = ('CI' in os.environ)
-training_iterations = 2 if smoke_test else 0 #70
+training_iterations = 2 if smoke_test else 50 #70
 num_samples = 2 if smoke_test else 10 #500
 warmup_steps = 2 if smoke_test else 10 #500
 load_batch_size = 512 # can also be 256
@@ -31,7 +31,7 @@ device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cp
 
 def train(train_x, train_y, model, likelihood, mll, optimizer, training_iterations):
     # Find optimal model hyperparameters
-    
+
     train_dataset = TensorDataset(train_x, train_y)
     train_loader = DataLoader(train_dataset, batch_size=load_batch_size, shuffle=True)
 
@@ -49,7 +49,7 @@ def train(train_x, train_y, model, likelihood, mll, optimizer, training_iteratio
                 loss.backward()
                 optimizer.step()
                 log_lik += -loss.item()*y_batch.shape[0]
-            if j % 50:
+            if j % 20 == 0:
                 print('Epoch %d Iter %d - Loss: %.3f' % (i + 1, j+1, loss.item()))
         print('Epoch %d - log lik: %.3f' % (i + 1, log_lik))
 
@@ -59,7 +59,7 @@ def train(train_x, train_y, model, likelihood, mll, optimizer, training_iteratio
 def ntl(INFERENCE):
 
     train_x, train_y, test_x, test_y, X_max_v, T0, likelihood, data = data_prep(INFERENCE, 1)
-    
+
     model = MultitaskGPModel(test_x, test_y, X_max_v, likelihood, MAP="MAP" in INFERENCE)
     model.drift_t_module.T0 = T0
 
@@ -67,18 +67,17 @@ def ntl(INFERENCE):
     # model.x_covar_module[0].c2 = torch.var(train_y)
     # model.x_covar_module[0].raw_c2.requires_grad = False
 
-    # covariate effects initialize to 0.05**2
-    for i in range(len(X_max_v)):
-        model.x_covar_module[i].c2 = torch.tensor(0.05**2)
+    # fix unit mean/variance by not requiring grad
+    #model.x_covar_module[-1].raw_c2.requires_grad = False
 
-
-    model.group_mean_module.constantvector.data[0].fill_(0.8) # mean_ntl of control
-    model.group_mean_module.constantvector.data[1].fill_(0.6) # mean_ntl of treated
+    # model.unit_mean_module.constant.data.fill_(0.12)
+    # model.unit_mean_module.constant.requires_grad = False
+    model.group_mean_module.constantvector.data[0].fill_(train_y[train_x[:,-3]==0].mean()) # mean_ntl of control
+    model.group_mean_module.constantvector.data[1].fill_(train_y[train_x[:,-3]==1].mean()) # mean_ntl of treated
 
     # set precision to double tensors
     torch.set_default_tensor_type(torch.DoubleTensor)
     train_x, train_y = train_x.to(device), train_y.to(device)
-    test_x, test_y = test_x.to(device), test_y.to(device)
     model.to(device)
     likelihood.to(device)
 
@@ -90,7 +89,7 @@ def ntl(INFERENCE):
         os.mkdir("results")
 
 
-    transforms = {   
+    transforms = {
             'group_index_module.raw_rho': model.group_index_module.raw_rho_constraint.transform,
             'group_t_covar_module.base_kernel.raw_lengthscale': model.group_t_covar_module.base_kernel.raw_lengthscale_constraint.transform,
             'group_t_covar_module.raw_outputscale': model.group_t_covar_module.raw_outputscale_constraint.transform,
@@ -110,63 +109,32 @@ def ntl(INFERENCE):
             #'x_covar_module.1.raw_c2': pyro.distributions.Normal(-7, 1).expand([1])
             #'model.x_covar_module.2.raw_c2': pyro.distributions.Normal(-6, 1).expand([1])
         }
-    
-        
+
+
     if INFERENCE=='MAP':
         model.group_index_module._set_rho(0.0)
-        model.group_t_covar_module.outputscale = 0.05**2  
-        model.group_t_covar_module.base_kernel.lengthscale = 15
-        likelihood.noise_covar.noise = 0.05**2
-        model.unit_t_covar_module.outputscale = 0.05**2 
-        model.unit_t_covar_module.base_kernel.lengthscale = 30
-
-        # covariate effects initialize to 0.01**2
-        for i in range(len(X_max_v)):
-            model.x_covar_module[i].c2 = torch.tensor(0.05**2)
+        model.group_t_covar_module.outputscale = 0.25**2
+        model.group_t_covar_module.base_kernel.lengthscale = 3
+        likelihood.noise_covar.noise = 0.1**2
+        model.unit_t_covar_module.outputscale = 0.25**2
+        model.unit_t_covar_module.base_kernel.lengthscale = 3
 
         for name, param in model.drift_t_module.named_parameters():
             param.requires_grad = True
-        
+
         #model.drift_t_module._set_T1(2.0)  # when treatment starts taking effect
         #model.drift_t_module._set_T2(5.0) # when treatment stabilizes
-        model.drift_t_module.base_kernel.lengthscale = 30.0
-        model.drift_t_module.outputscale = 0.05**2
+        model.drift_t_module.base_kernel.lengthscale = 3.0
+        model.drift_t_module.outputscale = 0.25**2
 
         # model.drift_t_module.raw_T1.requires_grad = False
         # model.drift_t_module.raw_T2.requires_grad = False
-        
+
         optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-        model, likelihood = train(test_x, test_y, model, likelihood, mll, optimizer, training_iterations)
+        model, likelihood = train(train_x, train_y, model, likelihood, mll, optimizer, training_iterations)
 
         torch.save(model.state_dict(), 'results/ntl_' +  INFERENCE + '_model_state.pth')
-        #torch.save(model, 'results/ntl_' +  INFERENCE + '_model_state.pb') # can't pickle lambda on windows
-        
-        return
-        
-        model.group_index_module._set_rho(0.9)
-        model.group_t_covar_module.outputscale = 0.02**2 
-        model.group_t_covar_module.base_kernel._set_lengthscale(3)
-        likelihood.noise_covar.noise = 0.03**2
-        model.unit_t_covar_module.outputscale = 0.02**2 
-        model.unit_t_covar_module.base_kernel._set_lengthscale(30)
-       
-        # covariate effects initialize to 0.0**2
 
-        for i in range(len(X_max_v)-1):
-            model.x_covar_module[i].c2 = torch.tensor(0.01**2)
-        #     model.x_covar_module[i].raw_c2.requires_grad = False
-
-        initial_params =  {'group_index_module.rho_prior': model.group_index_module.raw_rho.detach(),\
-            'group_t_covar_module.base_kernel.lengthscale_prior':  model.group_t_covar_module.base_kernel.raw_lengthscale.detach(),\
-            'group_t_covar_module.outputscale_prior': model.group_t_covar_module.raw_outputscale.detach(),\
-            'unit_t_covar_module.base_kernel.lengthscale_prior':  model.unit_t_covar_module.base_kernel.raw_lengthscale.detach(),\
-            'unit_t_covar_module.outputscale_prior': model.unit_t_covar_module.raw_outputscale.detach(),\
-            'likelihood.noise_covar.noise_prior': likelihood.raw_noise.detach(),
-            #'x_covar_module.0.c2_prior': model.x_covar_module[0].raw_c2.detach(),
-            #'x_covar_module.1.c2_prior': model.x_covar_module[1].raw_c2.detach()
-            }
-        return
-        
     else:
         model.load_strict_shapes(False)
         state_dict = torch.load('results/ntl_MAP_model_state.pth')
@@ -181,7 +149,7 @@ def ntl(INFERENCE):
         print(f'Parameter name: weekday std value = {np.sqrt(model.x_covar_module[0].c2.detach().numpy())}')
         print(f'Parameter name: day std value = {np.sqrt(model.x_covar_module[1].c2.detach().numpy())}')
         print(f'Parameter name: unit std value = {np.sqrt(model.x_covar_module[2].c2.detach().numpy())}')
-        
+
         print(f'Parameter name: drift ls value = {model.drift_t_module.base_kernel.lengthscale.detach().numpy()}')
         print(f'Parameter name: drift cov os value = {np.sqrt(model.drift_t_module.outputscale.detach().numpy())}')
 
@@ -194,6 +162,5 @@ if __name__ == "__main__":
     if args['type'] == 'lights':
         print("starting NTL")
         ntl(INFERENCE=args['inference'])
-
     else:
         exit()

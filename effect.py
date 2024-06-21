@@ -18,7 +18,7 @@ train_x, train_y, test_x, test_y, X_max_v, T0, likelihood, data = data_prep(INFE
 model = MultitaskGPModel(train_x, train_y, X_max_v, likelihood)
 
 model.load_strict_shapes(False)
-state_dict = torch.load('C:/Users/miame/OneDrive/Backups/Documents/GitHub/NTL-GP/results/ntl_MAP_model_state.pth')
+state_dict = torch.load('./results/ntl_MAP_model_state.pth')
 model.load_state_dict(state_dict)
 
 # finding the posterior, using the train data
@@ -36,23 +36,23 @@ upper_full = []
 with torch.no_grad(), gpytorch.settings.fast_pred_var():
     for j, (x_batch, y_batch) in enumerate(train_loader):
         print(j)
-        out = likelihood(model(x_batch))
+        out = model(x_batch)
         mu_f = out.mean
         lower, upper = out.confidence_region()
         mu_f_full.append(mu_f)
         lower_full.append(lower)
         upper_full.append(upper)
 
-mu_f_np = torch.concatenate(mu_f_full, dim=0).numpy()
-lower_np = torch.concatenate(lower_full, dim=0).numpy()
-upper_np = torch.concatenate(upper_full, dim=0).numpy()
+mu_f_np = torch.concat(mu_f_full, dim=0).numpy()
+lower_np = torch.concat(lower_full, dim=0).numpy()
+upper_np = torch.concat(upper_full, dim=0).numpy()
 
 RMSE = np.square(mu_f_np - train_y.numpy()).mean()**0.5
 print("RMSE: ", RMSE)
 
 # finding effect/counterfactuals
 test_x0 = train_x.clone().detach().requires_grad_(False)
-test_x0[:,-2] = 0
+test_x0[:,-1] = 0
 
 train_dataset = TensorDataset(test_x0, train_y)
 train_loader = DataLoader(train_dataset, batch_size=load_batch_size, shuffle=False)
@@ -71,9 +71,9 @@ with torch.no_grad(), gpytorch.settings.fast_pred_var():
         upper0_full.append(upper0)
 
 
-out0_np = torch.concatenate(out0_full, dim=0).numpy()
-lower0_np = torch.concatenate(lower0_full, dim=0).numpy()
-upper0_np = torch.concatenate(upper0_full, dim=0).numpy()
+out0_np = torch.concat(out0_full, dim=0).numpy()
+lower0_np = torch.concat(lower0_full, dim=0).numpy()
+upper0_np = torch.concat(upper0_full, dim=0).numpy()
 
 
 mask = (data.post==1) & (data.Treated==1)
@@ -84,6 +84,7 @@ print("ATT: {:0.3f} +- {:0.3f}\n".format(effect, effect_std))
 #print("model evidence: {:0.3f} \n".format(-loss*train_x.size()[0]))
 #print("BIC: {:0.3f} \n".format(BIC))
 
+
 results = pd.DataFrame({"gpr_mean":mu_f_np})
 results['true_y'] = train_y
 results['gpr_lwr'] = lower_np
@@ -91,13 +92,13 @@ results['gpr_upr'] = upper_np
 results['t0_mean'] = out0_np
 results['t0_lwr'] = lower0_np
 results['t0_upr'] = upper0_np
+
+data = pd.read_csv("data/data1999.csv",index_col=[0])
 results['Treated'] = data.set_index(results.index)['Treated']
 results['obs_id'] = data.set_index(results.index)['obs_id']
 results['period'] = data.set_index(results.index)['period']
 
-results.to_csv("C:/Users/miame/OneDrive/Backups/Documents/GitHub/NTL-GP/results/ntl_fitted_gpr.csv",index=False)
-
-
+results.to_csv("./results/ntl_fitted_gpr.csv",index=False)
 
 
 print('done')

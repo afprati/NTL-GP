@@ -10,7 +10,7 @@ from gpytorch.kernels import ScaleKernel, RBFKernel
 
 class MultitaskGPModel(gpytorch.models.ApproximateGP):
 
-    def __init__(self, train_x, train_y, X_max_v, likelihood, MAP=True, seed=123):
+    def __init__(self, train_x, train_y, likelihood, T0=0, MAP=True, seed=123):
         '''
         Inputs:
             - train_x:
@@ -21,7 +21,7 @@ class MultitaskGPModel(gpytorch.models.ApproximateGP):
         torch.manual_seed(seed)
 
         # Sparse Variational Formulation
-        num_inducing = 500 #can change, higher more accurate but takes longer
+        num_inducing = 2000 #can change, higher more accurate but takes longer
         inducing_points = train_x[np.random.choice(train_x.size(0),num_inducing,replace=False),:]
         # trying to make sure inducing points do not have too many zeros; remove duplicates
         inducing_points = torch.unique(inducing_points, dim=0) # make rowwise unique
@@ -40,14 +40,14 @@ class MultitaskGPModel(gpytorch.models.ApproximateGP):
         drift_outputscale_prior = gpytorch.priors.GammaPrior(concentration=1,rate=20)
         drift_lengthscale_prior = gpytorch.priors.GammaPrior(concentration=5,rate=1/5)
         
+        # dim of covariates
+        self.d = list(train_x.shape)[1] - 4 # to correspond to unit index
+
         # treatment/control groups
         self.num_groups = 2 
-        self.num_units = len(train_x[:,-3].unique()) # unit index
-
-        # categoritcal features: group/weekday/day/unit id
-        self.X_max_v = X_max_v
-        # dim of covariates
-        self.d = list(train_x.shape)[1] - 3 # to correspond to unit index
+        self.num_units = len(train_x[:,self.d].unique()) # unit index
+        self.T0 = T0
+        self.likelihood = likelihood
 
         # same mean of unit bias for all units, could extend this to be unit-dependent
         # self.unit_mean_module = gpytorch.means.ConstantMean()
@@ -79,7 +79,7 @@ class MultitaskGPModel(gpytorch.models.ApproximateGP):
             lengthscale_prior=unit_lengthscale_prior if MAP else None),\
             outputscale_prior=unit_outputscale_prior if MAP else None) # + 2 because looking at time
 
-        self.unit_indicator_module = myIndicatorKernel(num_tasks=len(train_x[:,-3].unique())) # need to select correct col in forward, no active_dim
+        self.unit_indicator_module = myIndicatorKernel(num_tasks=len(train_x[:,self.d].unique())) # need to select correct col in forward, no active_dim
 
         # drift process for treatment effect
         self.drift_t_module = gpytorch.kernels.ScaleKernel(gpytorch.kernels.RBFKernel(\
@@ -89,16 +89,17 @@ class MultitaskGPModel(gpytorch.models.ApproximateGP):
         self.drift_indicator_module = DriftIndicatorKernel(num_tasks=self.num_groups)
         
 
-
     def forward(self, x):
         if len(x.shape)==2:
-            group = x[:,-2].reshape((-1,1)).long()
-            units = x[:,-3].reshape((-1,1)).long()
-            ts = x[:,-1]
+            group = x[:,self.d+1].reshape((-1,1)).long()
+            units = x[:,self.d].reshape((-1,1)).long()
+            ts = x[:,self.d+2]
+            post = x[:,self.d+3].reshape((-1,1)).long()
         else:
-            group = x[0,:,-2].reshape((-1,1)).long()
-            units = x[0,:,-3].reshape((-1,1)).long()
-            ts = x[0,:,-1]
+            group = x[0,:,self.d+1].reshape((-1,1)).long()
+            units = x[0,:,self.d].reshape((-1,1)).long()
+            ts = x[0,:,self.d+2]
+            post = x[0,:,self.d+3].reshape((-1,1)).long()
 
         # only non-zero unit-level mean
         # mu = self.unit_mean_module(x)
@@ -113,10 +114,9 @@ class MultitaskGPModel(gpytorch.models.ApproximateGP):
         covar = covar_group_t.mul(covar_group_index) + covar_unit_t.mul(covar_unit_indicator) # multiplied bc of .mul
 
         #if self.drift_t_module.T0 is not None: aka prior on treatment
-        covar_drift_indicator = self.drift_indicator_module(group)
+        covar_drift_indicator = self.drift_indicator_module(post)
         covar_drift_t = self.drift_t_module(x)
         covar += covar_drift_t.mul(covar_drift_indicator)
-        
 
         # marginalize covariates effects
         # Marginalizing out the continuous covariates (approximation)
