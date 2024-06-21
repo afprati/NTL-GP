@@ -9,12 +9,13 @@ import datetime
 from sklearn.preprocessing import LabelEncoder
 
 
-device = torch.device('cpu')
 
-def data_prep(INFERENCE):
-    data = pd.read_csv("data/data1999.csv",index_col=[0])
-    
-    device = torch.device('cpu')
+def data_prep(INFERENCE, training):
+    device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+    #device = torch.device('cpu')
+
+    data = pd.read_csv("data/data1999test.csv",index_col=[0])
+
     torch.set_default_tensor_type(torch.DoubleTensor)
 
     # preprocess data
@@ -23,7 +24,7 @@ def data_prep(INFERENCE):
 
     ds = data['period'].to_numpy().reshape((-1,1))
     ohe = LabelEncoder()
-    X = data.drop(columns=["obs_id", "date", "mean_ntl", "Treated",
+    X = data.drop(columns=["obs_id", "date", "mean_ntl", "Treated",\
     "post","period"]).to_numpy().reshape(-1,) # econ_active_rate, literacy_rate, pop_hh_ratio, hindu_rate, polygamy_rate
     Group = data.Treated.to_numpy().reshape(-1,1)
     ohe.fit(X)
@@ -35,21 +36,27 @@ def data_prep(INFERENCE):
 
     # covariates and time trend
     T0 = data[data.date==datetime.date(1999, 1, 1)].period.to_numpy()[0]
-    post = ((Group==1) & (ds>=T0)).reshape(-1,1)
-    X = np.concatenate((X.reshape(ds.shape[0],-1),ids.reshape(-1,1),Group,ds, post), axis=1)
-    Y = data.mean_ntl.to_numpy()
-    
-#     train_condition = (data.post!=1) | (data.Treated!=1)
-#     train_x = torch.Tensor(X[train_condition], device=device).double()
-#     train_y = torch.Tensor(Y[train_condition], device=device).double()
+    if training==1:
+        train_condition = (data.post!=1) | (data.Treated!=1) # mask for training
+        train_x = torch.tensor(X[train_condition], device=device).double()
+        train_y = torch.tensor(Y[train_condition], device=device).double()
 
-    train_x = torch.Tensor(X).double()
-    train_y = torch.Tensor(Y).double()
-    
+    else:
+        train_x = torch.tensor(X, device=device).double()
+        train_y = torch.tensor(Y, device=device).double()
+
+
+    idx = data.Treated.to_numpy()
+    #train_g = torch.from_numpy(idx).to(device)
+
+    test_x = torch.tensor(X).double()
+    test_y = torch.tensor(Y).double()
+    #test_g = torch.from_numpy(idx)
+
     # define likelihood
     noise_prior = gpytorch.priors.GammaPrior(concentration=1,rate=10)
     likelihood = gpytorch.likelihoods.GaussianLikelihood(noise_prior=noise_prior if "MAP" in INFERENCE else None,\
             noise_constraint=gpytorch.constraints.Positive())
     print("data loaded")
-    
-    return train_x, train_y, T0, likelihood
+
+    return train_x, train_y, test_x, test_y, X_max_v, T0, likelihood, data

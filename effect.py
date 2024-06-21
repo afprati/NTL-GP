@@ -6,8 +6,6 @@ import gpytorch
 from model.multitaskmodel import MultitaskGPModel
 import pandas as pd
 import numpy as np
-import datetime
-from sklearn.preprocessing import LabelEncoder
 from torch.utils.data import TensorDataset, DataLoader
 from utilities.data_prep import data_prep
 load_batch_size = 512 # can also be 256
@@ -15,18 +13,13 @@ load_batch_size = 512 # can also be 256
 
 torch.manual_seed(123)
 
-# define likelihood
-noise_prior = gpytorch.priors.GammaPrior(concentration=1,rate=10)
-likelihood = gpytorch.likelihoods.GaussianLikelihood(noise_prior=noise_prior, noise_constraint=gpytorch.constraints.Positive())
+train_x, train_y, test_x, test_y, X_max_v, T0, likelihood, data = data_prep(INFERENCE="MAP", training=0)
 
-train_x, train_y, T0, likelihood = data_prep("MAP")
-
-model = MultitaskGPModel(train_x, train_y, likelihood, T0, MAP="MAP")
+model = MultitaskGPModel(train_x, train_y, X_max_v, likelihood)
 
 model.load_strict_shapes(False)
 state_dict = torch.load('./results/ntl_MAP_model_state.pth')
 model.load_state_dict(state_dict)
-
 
 # finding the posterior, using the train data
 # setting to eval mode
@@ -55,7 +48,7 @@ lower_np = torch.concat(lower_full, dim=0).numpy()
 upper_np = torch.concat(upper_full, dim=0).numpy()
 
 RMSE = np.square(mu_f_np - train_y.numpy()).mean()**0.5
-print(RMSE)
+print("RMSE: ", RMSE)
 
 # finding effect/counterfactuals
 test_x0 = train_x.clone().detach().requires_grad_(False)
@@ -82,7 +75,8 @@ out0_np = torch.concat(out0_full, dim=0).numpy()
 lower0_np = torch.concat(lower0_full, dim=0).numpy()
 upper0_np = torch.concat(upper0_full, dim=0).numpy()
 
-mask = (train_x[:,-1]==1)
+
+mask = (data.post==1) & (data.Treated==1)
 effect = mu_f_np[mask].mean() - out0_np[mask].mean()
 effect_std = np.sqrt((mu_f_np[mask].var() + out0_np[mask].var())) / np.sqrt(train_x.numpy()[mask].shape[0])
 #BIC = (2+4+6+1)*torch.log(torch.tensor(train_x.size()[0])) + 2*loss*train_x.size()[0]
