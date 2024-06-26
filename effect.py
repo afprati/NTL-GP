@@ -74,7 +74,7 @@ out0_np = torch.concat(out0_full, dim=0).numpy()
 lower0_np = torch.concat(lower0_full, dim=0).numpy()
 upper0_np = torch.concat(upper0_full, dim=0).numpy()
 
-mask = (train_x[:,-1]==1)
+mask = (train_x[:,-1]==1).cpu()
 effect = mu_f_np[mask].mean() - out0_np[mask].mean()
 effect_std = np.sqrt((mu_f_np[mask].var() + out0_np[mask].var())) / np.sqrt(train_x.numpy()[mask].shape[0])
 print("ATT: {:0.3f} +- {:0.3f}\n".format(effect, effect_std))
