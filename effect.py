@@ -37,11 +37,11 @@ upper_full = []
 with torch.no_grad(), gpytorch.settings.fast_pred_var():
     for j, (x_batch, y_batch) in enumerate(train_loader):
         out = model(x_batch)
-        mu_f = out.mean
+        mu_f = out.mean.cpu()
         lower, upper = out.confidence_region()
         mu_f_full.append(mu_f)
-        lower_full.append(lower)
-        upper_full.append(upper)
+        lower_full.append(lower.cpu())
+        upper_full.append(upper.cpu())
 
 mu_f_np = torch.concat(mu_f_full, dim=0).numpy()
 lower_np = torch.concat(lower_full, dim=0).numpy()
@@ -65,9 +65,9 @@ with torch.no_grad(), gpytorch.settings.fast_pred_var():
     for j, (x_batch, y_batch) in enumerate(train_loader):
         out0 = model(x_batch)
         lower0, upper0 = out0.confidence_region()
-        out0_full.append(out0.mean)
-        lower0_full.append(lower0)
-        upper0_full.append(upper0)
+        out0_full.append(out0.mean.cpu())
+        lower0_full.append(lower0.cpu())
+        upper0_full.append(upper0.cpu())
 
 
 out0_np = torch.concat(out0_full, dim=0).numpy()
