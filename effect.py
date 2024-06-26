@@ -47,7 +47,7 @@ mu_f_np = torch.concat(mu_f_full, dim=0).numpy()
 lower_np = torch.concat(lower_full, dim=0).numpy()
 upper_np = torch.concat(upper_full, dim=0).numpy()
 
-RMSE = np.square(mu_f_np - train_y.numpy()).mean()**0.5
+RMSE = np.square(mu_f_np - train_y.cpu().numpy()).mean()**0.5
 print("RMSE: ", RMSE)
 
 # finding effect/counterfactuals
@@ -81,16 +81,16 @@ print("ATT: {:0.3f} +- {:0.3f}\n".format(effect, effect_std))
 
 
 results = pd.DataFrame({"gpr_mean":mu_f_np})
-results['true_y'] = train_y
+results['true_y'] = train_y.cpu()
 results['gpr_lwr'] = lower_np
 results['gpr_upr'] = upper_np
 results['t0_mean'] = out0_np
 results['t0_lwr'] = lower0_np
 results['t0_upr'] = upper0_np
 
-results['Treated'] = train_x[:,-3].numpy()
-results['obs_id'] = train_x[:,-4].numpy()
-results['period'] = train_x[:,-2].numpy()
+results['Treated'] = train_x[:,-3].cpu().numpy()
+results['obs_id'] = train_x[:,-4].cpu().numpy()
+results['period'] = train_x[:,-2].cpu().numpy()
 
 results.to_csv("./results/ntl_fitted_gpr.csv",index=False)
 
