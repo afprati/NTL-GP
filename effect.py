@@ -22,14 +22,14 @@ model.load_strict_shapes(False)
 state_dict = torch.load('./results/ntl_MAP_model_state.pth')
 model.load_state_dict(state_dict)
 
-print(f'Parameter name: rho value = {model.group_index_module.rho.detach().numpy()}')
-print(f'Parameter name: group ls value = {model.group_t_covar_module.base_kernel.lengthscale.detach().numpy()}')
-print(f'Parameter name: group os value = {np.sqrt(model.group_t_covar_module.outputscale.detach().numpy())}')
-print(f'Parameter name: unit ls value = {model.unit_t_covar_module.base_kernel.lengthscale.detach().numpy()}')
-print(f'Parameter name: unit os value = {np.sqrt(model.unit_t_covar_module.outputscale.detach().numpy())}')
-print(f'Parameter name: noise value = {np.sqrt(likelihood.noise.detach().numpy())}')
-print(f'Parameter name: drift ls value = {model.drift_t_module.base_kernel.lengthscale.detach().numpy()}')
-print(f'Parameter name: drift cov os value = {np.sqrt(model.drift_t_module.outputscale.detach().numpy())}')
+print(f'Parameter name: rho value = {model.group_index_module.rho.detach().cpu().numpy()}')
+print(f'Parameter name: group ls value = {model.group_t_covar_module.base_kernel.lengthscale.detach().cpu().numpy()}')
+print(f'Parameter name: group os value = {np.sqrt(model.group_t_covar_module.outputscale.detach().cpu().numpy())}')
+print(f'Parameter name: unit ls value = {model.unit_t_covar_module.base_kernel.lengthscale.detach().cpu().numpy()}')
+print(f'Parameter name: unit os value = {np.sqrt(model.unit_t_covar_module.outputscale.detach().cpu().numpy())}')
+print(f'Parameter name: noise value = {np.sqrt(likelihood.noise.detach().cpu().numpy())}')
+print(f'Parameter name: drift ls value = {model.drift_t_module.base_kernel.lengthscale.detach().cpu().numpy()}')
+print(f'Parameter name: drift cov os value = {np.sqrt(model.drift_t_module.outputscale.detach().cpu().numpy())}')
 
 # finding the posterior, using the train data
 # setting to eval mode
