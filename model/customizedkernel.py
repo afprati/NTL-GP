@@ -6,6 +6,7 @@ from gpytorch.utils.broadcasting import _mul_broadcast_shape
 from gpytorch.kernels.kernel import Kernel
 from gpytorch.means.mean import Mean
 
+device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 class myIndexKernel(Kernel):
 
@@ -49,6 +50,7 @@ class myIndexKernel(Kernel):
         else:
             res[0,1] = self.rho
             res[1,0] = self.rho
+        res = res.to(device)
         return res
 
     def forward(self, i1, i2, **params):
@@ -125,6 +127,7 @@ class myIndicatorKernel(Kernel):
 
     def covar_matrix(self):
         res = torch.eye(self.num_tasks)
+        res = res.to(device)
         return res
 
     def forward(self, i1, i2, **params):
@@ -291,6 +294,7 @@ class DriftIndicatorKernel(Kernel):
                 res[i,1,1] = 1
         else:
             res[1,1] = 1
+        res = res.to(device)
         return res
 
     def forward(self, i1, i2, **params):
