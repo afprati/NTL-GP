@@ -11,8 +11,8 @@ from model.multitaskmodel import MultitaskGPModel
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
    
-def data_prep(INFERENCE, training):
-    data = pd.read_csv("data/data1999test.csv",index_col=[0])
+def data_prep(INFERENCE):
+    data = pd.read_csv("data/data1999.csv",index_col=[0])
     
     torch.set_default_tensor_type(torch.DoubleTensor)
     
