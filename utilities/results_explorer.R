@@ -13,6 +13,16 @@ data %>%
   geom_line(aes(x=period, y=mean_ctr, color=as.factor(Treated)), linetype="dashed") +
   geom_line(aes(x=period, y=mean_raw, color=as.factor(Treated)), linetype="dotted")
 
+small <- read.csv("~/GitHub/NTL-GP/data/data1999test.csv")
+
+small %>%
+  group_by(Treated, period) %>%
+  summarize(mean_group=mean(mean_ntl)) %>%
+  ggplot() +
+  geom_line(aes(x=period, y=mean_group, color=as.factor(Treated))) +
+  geom_vline(xintercept = 8) +
+  theme_minimal()
+
 data %>%
   group_by(Treated, period) %>%
   summarize(group_mean = mean(gpr_mean, na.rm=T),

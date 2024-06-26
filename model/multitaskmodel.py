@@ -32,13 +32,13 @@ class MultitaskGPModel(gpytorch.models.ApproximateGP):
         super().__init__(q_f)
 
         # define priors
-        outputscale_prior = gpytorch.priors.GammaPrior(concentration=1,rate=10)
-        lengthscale_prior = gpytorch.priors.GammaPrior(concentration=4,rate=1/5)
+        outputscale_prior = gpytorch.priors.GammaPrior(concentration=1,rate=1)
+        lengthscale_prior = gpytorch.priors.GammaPrior(concentration=5,rate=1)
         rho_prior = gpytorch.priors.UniformPrior(-1, 1)
-        unit_outputscale_prior = gpytorch.priors.GammaPrior(concentration=1,rate=10)
-        unit_lengthscale_prior = gpytorch.priors.GammaPrior(concentration=4,rate=1/5)
-        drift_outputscale_prior = gpytorch.priors.GammaPrior(concentration=1,rate=20)
-        drift_lengthscale_prior = gpytorch.priors.GammaPrior(concentration=5,rate=1/5)
+        unit_outputscale_prior = gpytorch.priors.GammaPrior(concentration=1,rate=1)
+        unit_lengthscale_prior = gpytorch.priors.GammaPrior(concentration=5,rate=1)
+        drift_outputscale_prior = gpytorch.priors.GammaPrior(concentration=1,rate=1)
+        drift_lengthscale_prior = gpytorch.priors.GammaPrior(concentration=10,rate=1)
         
         # dim of covariates
         self.d = list(train_x.shape)[1] - 4 # to correspond to unit index

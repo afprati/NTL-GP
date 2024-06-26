@@ -7,23 +7,22 @@ import pandas as pd
 import numpy as np
 import datetime
 from sklearn.preprocessing import LabelEncoder
+from model.multitaskmodel import MultitaskGPModel
 
-
-device = torch.device('cpu')
-
-def data_prep(INFERENCE):
-    data = pd.read_csv("data/data1999.csv",index_col=[0])
+device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
+   
+def data_prep(INFERENCE, training):
+    data = pd.read_csv("data/data1999test.csv",index_col=[0])
     
-    device = torch.device('cpu')
     torch.set_default_tensor_type(torch.DoubleTensor)
-
+    
     # preprocess data
     data = data[~data.obs_id.isin([867, 1690])]
     data.date = data.date.apply(lambda x: datetime.datetime.strptime(x, '%m/%d/%Y').date())
 
     ds = data['period'].to_numpy().reshape((-1,1))
     ohe = LabelEncoder()
-    X = data.drop(columns=["obs_id", "date", "mean_ntl", "Treated",
+    X = data.drop(columns=["obs_id", "date", "mean_ntl", "Treated",\
     "post","period"]).to_numpy().reshape(-1,) # econ_active_rate, literacy_rate, pop_hh_ratio, hindu_rate, polygamy_rate
     Group = data.Treated.to_numpy().reshape(-1,1)
     ohe.fit(X)
@@ -47,9 +46,17 @@ def data_prep(INFERENCE):
     train_y = torch.Tensor(Y).double()
     
     # define likelihood
-    noise_prior = gpytorch.priors.GammaPrior(concentration=1,rate=10)
+    noise_prior = gpytorch.priors.GammaPrior(concentration=5,rate=5)
     likelihood = gpytorch.likelihoods.GaussianLikelihood(noise_prior=noise_prior if "MAP" in INFERENCE else None,\
             noise_constraint=gpytorch.constraints.Positive())
+    likelihood.to(device)
     print("data loaded")
+    train_x, train_y = train_x.to(device), train_y.to(device)
     
     return train_x, train_y, T0, likelihood
+
+def model_prep(train_x, train_y, likelihood, T0, MAP=True):
+    model = MultitaskGPModel(train_x, train_y, likelihood, T0, MAP=MAP)
+    model.to(device)
+    return model
+
