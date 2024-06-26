@@ -74,17 +74,17 @@ def ntl(INFERENCE):
     
         
     if INFERENCE=='MAP':
-        model.group_index_module._set_rho(0.8)
+        model.group_index_module._set_rho(0.5)
         model.group_t_covar_module.outputscale = 1**2  
-        model.group_t_covar_module.base_kernel.lengthscale = 5
-        likelihood.noise_covar.noise = 0.1**2
+        model.group_t_covar_module.base_kernel.lengthscale = 3
+        likelihood.noise_covar.noise = 0.5**2
         model.unit_t_covar_module.outputscale = 1**2  
         model.unit_t_covar_module.base_kernel.lengthscale = 3
 
         for name, param in model.drift_t_module.named_parameters():
             param.requires_grad = True
         
-        model.drift_t_module.base_kernel.lengthscale = 10.0
+        model.drift_t_module.base_kernel.lengthscale = 5.0
         model.drift_t_module.outputscale = 0.25**2  
  
         optimizer = torch.optim.Adam(model.parameters(), lr=0.1)
