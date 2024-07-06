@@ -1,11 +1,12 @@
 library(tidyverse)
 library(ggplot2)
+library(dplyr)
 
-data <- read.csv("~/Documents/GitHub/NTL-GP/results/ntl_fitted_gpr.csv")
+data <- read.csv("./results/ntl_fitted_gpr.csv")
 
 data %>% 
   group_by(Treated, period) %>% 
-  summarize(mean_gpr = mean(gpr_mean),
+  summarise(mean_gpr = mean(gpr_mean),
             mean_raw = mean(true_y),
             mean_ctr = mean(t0_mean)) %>% 
   ggplot() + 

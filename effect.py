@@ -42,15 +42,20 @@ mu_f_full = []
 lower_full = []
 upper_full = []
 
-
+log_lik = 0
+mll = gpytorch.mlls.VariationalELBO(likelihood, model, num_data=train_y.size(0))
 with torch.no_grad(), gpytorch.settings.fast_pred_var():
     for j, (x_batch, y_batch) in enumerate(train_loader):
         out = model(x_batch)
+        loss = -mll(out, y_batch)
+        log_lik += -loss.item()*y_batch.shape[0]
         mu_f = out.mean.cpu()
         lower, upper = out.confidence_region()
         mu_f_full.append(mu_f)
         lower_full.append(lower.cpu())
         upper_full.append(upper.cpu())
+        
+print(log_lik)
 
 mu_f_np = torch.concat(mu_f_full, dim=0).numpy()
 lower_np = torch.concat(lower_full, dim=0).numpy()

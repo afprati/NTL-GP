@@ -20,7 +20,7 @@ import dill as pickle
 torch.manual_seed(123)
 
 smoke_test = ('CI' in os.environ)
-training_iterations = 2 if smoke_test else 100 #70
+training_iterations = 2 if smoke_test else 20 #70
 num_samples = 2 if smoke_test else 10 #500
 warmup_steps = 2 if smoke_test else 10 #500
 load_batch_size = 512 # can also be 256
@@ -74,11 +74,11 @@ def ntl(INFERENCE):
     
         
     if INFERENCE=='MAP':
-        model.group_index_module._set_rho(0.5)
-        model.group_t_covar_module.outputscale = 1**2  
+        model.group_index_module._set_rho(0.9)
+        model.group_t_covar_module.outputscale = 0.25**2  
         model.group_t_covar_module.base_kernel.lengthscale = 3
-        likelihood.noise_covar.noise = 0.5**2
-        model.unit_t_covar_module.outputscale = 1**2  
+        likelihood.noise_covar.noise = 0.1**2
+        model.unit_t_covar_module.outputscale = 0.25**2  
         model.unit_t_covar_module.base_kernel.lengthscale = 3
 
         for name, param in model.drift_t_module.named_parameters():
