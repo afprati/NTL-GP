@@ -1,4 +1,4 @@
-library(tidyverse)
+setwd("/home/triads/Documents/chenyehu/NTL-GP")
 library(ggplot2)
 library(dplyr)
 
@@ -14,7 +14,7 @@ data %>%
   geom_line(aes(x=period, y=mean_ctr, color=as.factor(Treated)), linetype="dashed") +
   geom_line(aes(x=period, y=mean_raw, color=as.factor(Treated)), linetype="dotted")
 
-small <- read.csv("~/GitHub/NTL-GP/data/data1999test.csv")
+small <- read.csv("./data/data1999test.csv")
 
 small %>%
   group_by(Treated, period) %>%

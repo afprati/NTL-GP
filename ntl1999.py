@@ -76,7 +76,7 @@ def ntl(INFERENCE):
     if INFERENCE=='MAP':
         model.group_index_module._set_rho(0.9)
         model.group_t_covar_module.outputscale = 0.25**2  
-        model.group_t_covar_module.base_kernel.lengthscale = 3
+        model.group_t_covar_module.base_kernel.lengthscale = 4
         likelihood.noise_covar.noise = 0.1**2
         model.unit_t_covar_module.outputscale = 0.25**2  
         model.unit_t_covar_module.base_kernel.lengthscale = 3
